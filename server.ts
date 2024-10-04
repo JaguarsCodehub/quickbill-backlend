@@ -99,6 +99,7 @@ SELECT [CompanyID]
 
         const result = await request.query(query);
         res.json(result.recordset);
+        console.log("Data fetched successfully 🟢");
     } catch (err) {
         console.error('SQL error', err);
         res.status(500).send('Server error');

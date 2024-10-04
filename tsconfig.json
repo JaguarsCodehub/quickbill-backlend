@@ -3,14 +3,16 @@
     "target": "ES2020",
     "module": "commonjs",
     "outDir": "./dist",
-    "rootDir": "./api",
+    "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
   "include": [
-    "api"
+    "server.ts",
+    "api/**/*.ts",
+    "utils/**/*.ts"
   ],
   "exclude": [
     "node_modules"

@@ -1,6 +1,6 @@
 const cryptohack = require('crypto')
 
-function decrypt(cipherText) {
+function decrypt(cipherText: string) {
     const encryptionKey = 'MAKV2SPBNI99212';
     cipherText = cipherText.replace(/ /g, '+');
     const cipherBytes = Buffer.from(cipherText, 'base64');
