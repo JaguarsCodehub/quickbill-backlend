@@ -1,1 +1,1 @@
-iCode.ToString("000000000")
+- Product Master by Group Name, then create orders https://quickbillbook.com/SalesOrder.aspx
