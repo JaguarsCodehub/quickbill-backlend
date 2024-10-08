@@ -260,5 +260,63 @@ app.post('/addCustomer', async (req: Request, res: Response) => {
     }
 });
 
+app.get('/customers', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        connection = await getDbConnection();
+        const request = connection.request();
 
+        const query = ` SELECT [CustomerID]
+                            ,[CustomerName]
+                            ,[CustomerGroup]
+                            ,[CustomerType]
+                            ,[ContactPerson]
+                            ,[Address1]
+                            ,[Address2]
+                            ,[Address3]
+                            ,[City]
+                            ,[Pin]
+                            ,[State]
+                            ,[Country]
+                            ,[Mobile1]
+                            ,[Mobile2]
+                            ,[Telephone1]
+                            ,[Telephone2]
+                            ,[Email]
+                            ,[Website]
+                            ,[GSTTIN]
+                            ,[PANNo]
+                            ,[VATNo]
+                            ,[TINNo]
+                            ,[LicenseNo1]
+                            ,[License2]
+                            ,[Opening]
+                            ,[CompanyID]
+                            ,[UserID]
+                            ,[Tag1]
+                            ,[Tag2]
+                            ,[Tag3]
+                            ,[Tag4]
+                            ,[Tag5]
+                            ,[CreatedBy]
+                            ,[CreatedDate]
+                            ,[ModifiedBy]
+                            ,[ModifiedDate]
+                            ,[Code]
+                            ,[Flag]
+                            ,[GroupCode]
+                            ,[Aadhaar]
+                            ,[Mssme]
+                            ,[fssai]
+                            ,[udyam]
+                        FROM [QuickbillBook].[dbo].[Customer]
+                        WHERE UserId = 1
+                    `
 
+        const result = await request.query(query);
+        res.json(result.recordset);
+
+    } catch (error) {
+        console.error("Error while fetching customers", error)
+    }
+})
