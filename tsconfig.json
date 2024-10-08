@@ -12,7 +12,8 @@
   "include": [
     "server.ts",
     "api/**/*.ts",
-    "utils/**/*.ts"
+    "utils/**/*.ts",
+    "utils/dcrypt.js"
   ],
   "exclude": [
     "node_modules"
