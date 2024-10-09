@@ -262,9 +262,15 @@ app.post('/addCustomer', async (req: Request, res: Response) => {
 
 app.get('/customers', async (req: Request, res: Response) => {
     let connection;
+
     try {
+
+        const userID = req.header('UserID');
+        console.log("UserID", userID)
         connection = await getDbConnection();
         const request = connection.request();
+
+        request.input('UserID', sql.Int, userID);
 
         const query = ` SELECT [CustomerID]
                             ,[CustomerName]
@@ -310,8 +316,9 @@ app.get('/customers', async (req: Request, res: Response) => {
                             ,[fssai]
                             ,[udyam]
                         FROM [QuickbillBook].[dbo].[Customer]
-                        WHERE UserId = 1
+                        WHERE UserID = @UserID ORDER BY CustomerName ASC
                     `
+
 
         const result = await request.query(query);
         res.json(result.recordset);
@@ -322,7 +329,7 @@ app.get('/customers', async (req: Request, res: Response) => {
 })
 
 app.get('/items', async (req: Request, res: Response) => {
-    let connection;
+    let pool;
     try {
         // Get values from headers
         const userID = req.header('UserID');
@@ -334,10 +341,13 @@ app.get('/items', async (req: Request, res: Response) => {
             return res.status(400).json({ error: "Missing required headers: UserID, CompanyID, or Prefix" });
         }
 
-        connection = await getDbConnection();
-        const request = connection.request();
+        pool = await sql.connect(dbConfig);
 
         // Query for items
+        const itemsRequest = pool.request();
+        itemsRequest.input('UserID', sql.Int, parseInt(userID));
+        itemsRequest.input('CompanyID', sql.Int, parseInt(companyID));
+
         const itemsQuery = `
             SELECT [ItemID], [ItemCode], [ItemName], [PurRate], [PurDisc], [SalRate], [SalDisc],
                    [Barcode], [OpeningStock], [Unit], [MRP], [TaxCode], [UserID], [CompanyID],
@@ -345,9 +355,16 @@ app.get('/items', async (req: Request, res: Response) => {
                    [HSNCode], [TaxCategory], [GSTTaxCode], [IGSTTaxCode], [UTGSTTaxCode], [imgPath],
                    [Catagri], [grosswegiht], [netwegiht], [purity], [print], [makingcharge], [Othercharge]
             FROM [QuickbillBook].[dbo].[ItemMaster] 
-            WHERE UserID = @UserID AND CompanyID = @CompanyID`;
+            WHERE UserID = @UserID AND CompanyID = @CompanyID ORDER BY ItemName ASC`;
+
+        const itemsResult = await itemsRequest.query(itemsQuery);
 
         // Query for last serial code
+        const serialRequest = pool.request();
+        serialRequest.input('UserID', sql.Int, parseInt(userID));
+        serialRequest.input('CompanyID', sql.Int, parseInt(companyID));
+        serialRequest.input('Prefix', sql.VarChar, prefix);
+
         const serialQuery = `
             SELECT TOP 1 ISNULL(DocNo, 0) as SRL 
             FROM Orders 
@@ -359,16 +376,7 @@ app.get('/items', async (req: Request, res: Response) => {
             AND UserID=@UserID
             ORDER BY SRL DESC`;
 
-        const itemsResult = await request
-            .input('UserID', sql.Int, parseInt(userID))
-            .input('CompanyID', sql.Int, parseInt(companyID))
-            .query(itemsQuery);
-
-        const serialResult = await request
-            .input('UserID', sql.Int, parseInt(userID))
-            .input('CompanyID', sql.Int, parseInt(companyID))
-            .input('Prefix', sql.VarChar, prefix)
-            .query(serialQuery);
+        const serialResult = await serialRequest.query(serialQuery);
 
         const lastSerial = serialResult.recordset[0]?.SRL || '0';
         const nextSerialNumber = parseInt(lastSerial) + 1;
@@ -384,8 +392,8 @@ app.get('/items', async (req: Request, res: Response) => {
         console.error("Error while fetching items and serial", error);
         res.status(500).json({ error: "Internal server error" });
     } finally {
-        if (connection) {
-            await connection.close();
+        if (pool) {
+            await pool.close();
         }
     }
 });
