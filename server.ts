@@ -397,3 +397,103 @@ app.get('/items', async (req: Request, res: Response) => {
         }
     }
 });
+
+
+app.post('/createOrder', async (req: Request, res: Response) => {
+  try {
+    const { CustomerCode, Items } = req.body;
+
+    const pool = await getDbConnection();
+
+    // Start a transaction
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
+
+    try {
+      // Generate a new SRL (assuming it's an auto-incrementing field in your database)
+      const result = await transaction
+        .request()
+        .query('SELECT ISNULL(MAX(SRL), 0) + 1 AS NextSRL FROM OrdersStk');
+      const nextSRL = result.recordset[0].NextSRL;
+
+      // Insert each item in the order
+      for (let i = 0; i < Items.length; i++) {
+        const item = Items[i];
+        await transaction
+          .request()
+          .input('SRL', sql.Int, nextSRL)
+          .input('SNo', sql.Int, i + 1)
+          .input('CurrName', sql.NVarChar, 'INR') // Assuming Indian Rupees
+          .input('CurrRate', sql.Decimal(18, 2), 1) // Assuming 1:1 exchange rate
+          .input('DocDate', sql.Date, new Date())
+          .input('ItemCode', sql.NVarChar, item.ItemCode)
+          .input('Qty', sql.Decimal(18, 2), item.Qty)
+          .input('Rate', sql.Decimal(18, 2), item.Rate)
+          .input('Disc', sql.Decimal(18, 2), item.Disc)
+          .input('Amt', sql.Decimal(18, 2), item.Amount)
+          .input('PartyCode', sql.NVarChar, CustomerCode)
+          .input('StoreCode', sql.NVarChar, 'DEFAULT') // You may need to adjust this
+          .input('MainType', sql.NVarChar, 'SL')
+          .input('SubType', sql.NVarChar, 'RS')
+          .input('Type', sql.NVarChar, 'SOR')
+          .input('Prefix', sql.NVarChar, req.headers.prefix)
+          .input('Narration', sql.NVarChar, '')
+          .input('BranchCode', sql.NVarChar, '') // You may need to adjust this
+          .input('Unit', sql.NVarChar, '')
+          .input('DiscAmt', sql.VarChar, '') // You may need to calculate this
+          .input('MRP', sql.VarChar, '') // You may need to add this to your item data
+          .input('NewRate', sql.Decimal(18, 2), item.Rate)
+          .input('TaxCode', sql.NVarChar, item.TaxCode)
+          .input('TaxAmt', sql.Decimal(18, 2), item.TaxAmt)
+          .input('CessAmt', sql.Decimal(18, 2), 0) // You may need to calculate this
+          .input('Taxable', sql.Decimal(18, 2), item.Taxable)
+          .input('BarcodeValue', sql.NVarChar, '')
+          .input('UserID', sql.Int, req.headers.userid)
+          .input('CompanyID', sql.Int, req.headers.companyid)
+          .input('CreatedBy', sql.Int, req.headers.userid)
+          .input('ModifiedBy', sql.Int, req.headers.userid)
+          .input('CGST', sql.Decimal(18, 2), item.TaxAmt / 2) // Assuming CGST is half of total tax
+          .input('SGST', sql.Decimal(18, 2), item.TaxAmt / 2) // Assuming SGST is half of total tax
+          .input('IGST', sql.Decimal(18, 2), 0) // Assuming no IGST for this example
+          .input('UTGST', sql.Decimal(18, 2), 0) // Assuming no UTGST for this example
+          .input('Pnding', sql.Decimal(18, 2), item.Qty) // Assuming all quantity is pending
+          .input('DelivaryDate', sql.Date, new Date()) // You may want to add this to your order data
+          .query(`
+                        INSERT INTO OrdersStk
+                        ([SRL], [SNo], [CurrName], [CurrRate], [DocDate], [ItemCode], [Qty], [Rate], [Disc], [Amt],
+                        [PartyCode], [StoreCode], [MainType], [SubType], [Type], [Prefix], [Narration], [BranchCode],
+                        [Unit], [DiscAmt], [MRP], [NewRate], [TaxCode], [TaxAmt], [CessAmt], [Taxable], [BarcodeValue],
+                        [UserID], [CompanyID], [CreatedBy], [CreatedDate], [ModifiedBy], [ModifiedDate], [CGST], [SGST],
+                        [IGST], [UTGST], [Pnding], [ChallanPanding], [DelivaryDate])
+                        VALUES
+                        (@SRL, @SNo, @CurrName, @CurrRate, @DocDate, @ItemCode, @Qty, @Rate, @Disc, ROUND(@Amt, 0),
+                        @PartyCode, @StoreCode, @MainType, @SubType, @Type, @Prefix, @Narration, @BranchCode,
+                        @Unit, @DiscAmt, @MRP, @NewRate, @TaxCode, @TaxAmt, @CessAmt, @Taxable, @BarcodeValue,
+                        @UserID, @CompanyID, @CreatedBy, GETDATE(), @ModifiedBy, GETDATE(), @CGST, @SGST,
+                        @IGST, @UTGST, @Pnding, @Pnding, @DelivaryDate)
+                    `);
+      }
+
+      // Commit the transaction
+      await transaction.commit();
+
+      res
+        .status(201)
+        .json({
+          message: 'Order created successfully',
+          orderNumber: `SOR/${nextSRL}`,
+        });
+    } catch (error) {
+      // If there's an error, roll back the transaction
+      await transaction.rollback();
+      throw error;
+    }
+  } catch (error) {
+    console.error('Error creating order:', error);
+    res
+      .status(500)
+      .json({ error: 'An error occurred while creating the order' });
+  }
+});
+
+module.exports = app;
