@@ -505,7 +505,6 @@ app.post('/api/create-order', async (req: Request, res: Response) => {
                 .input('igst', sql.Decimal, item.igst)
                 .input('utgst', sql.Decimal, item.utgst)
                 .input('pnding', sql.Decimal, item.pnding)
-                .input('delivaryDate', sql.DateTime, item.delivaryDate)
 
                 // ... (add all other inputs for item)
                 .query(`
@@ -521,7 +520,7 @@ app.post('/api/create-order', async (req: Request, res: Response) => {
                         @partyCode, @storeCode, @mainType, @subType, @type, @prefix, @narration, @branchCode,
                         @unit, @discAmt, @mrp, @newRate, @taxCode, @taxAmt, @cessAmt, @taxable, @barcodeValue,
                         @userId, @companyId, @createdBy, GETDATE(), @modifiedBy, GETDATE(), @cgst, @sgst, @igst,
-                        @utgst, @pnding, @pnding, @delivaryDate
+                        @utgst, @pnding, @pnding, GETDATE()
                     )
                 `);
         }
