@@ -404,14 +404,12 @@ app.post('/api/create-order', async (req: Request, res: Response) => {
     let connection;
     try {
         connection = await sql.connect(dbConfig);
-
         const {
             docNo, docDate, orderNo, orderDate, pageNo, partyCode, billAmt, totalQty, netAmt, taxAmt, discAmt,
             mainType, subType, type, prefix, narration, userId, companyId, createdBy, modifiedBy,
             partyName, selection, productName, discPer, cgst, sgst, igst, utgst, rate, addCode, totalAmt,
             items
         } = req.body;
-
         // Insert into Orders table
         const orderResult = await connection.request()
             .input('docNo', sql.VarChar, docNo)
@@ -465,7 +463,6 @@ app.post('/api/create-order', async (req: Request, res: Response) => {
         }
 
         const orderId = orderResult.recordset[0].OrderID;
-
         // Insert items into OrdersStk table
         for (const item of items) {
             await connection.request()
@@ -505,24 +502,24 @@ app.post('/api/create-order', async (req: Request, res: Response) => {
                 .input('igst', sql.Decimal, item.igst)
                 .input('utgst', sql.Decimal, item.utgst)
                 .input('pnding', sql.Decimal, item.pnding)
-
+                .input('delivaryDate', sql.DateTime, item.delivaryDate)
                 // ... (add all other inputs for item)
                 .query(`
-                    INSERT INTO OrdersStk (
-                        SRL, SNo, CurrName, CurrRate, DocDate, ItemCode, Qty, Rate, Disc, Amt, PartyCode,
-                        StoreCode, MainType, SubType, Type, Prefix, Narration, BranchCode, Unit, DiscAmt,
-                        MRP, NewRate, TaxCode, TaxAmt, CessAmt, Taxable, BarcodeValue, UserID, CompanyID,
-                        CreatedBy, CreatedDate, ModifiedBy, ModifiedDate, CGST, SGST, IGST, UTGST, Pnding,
-                        ChallanPanding, DelivaryDate
-                    )
-                    VALUES (
-                        @srl, @sNo, @currName, @currRate, @docDate, @itemCode, @qty, @rate, @disc, ROUND(@amt, 0),
-                        @partyCode, @storeCode, @mainType, @subType, @type, @prefix, @narration, @branchCode,
-                        @unit, @discAmt, @mrp, @newRate, @taxCode, @taxAmt, @cessAmt, @taxable, @barcodeValue,
-                        @userId, @companyId, @createdBy, GETDATE(), @modifiedBy, GETDATE(), @cgst, @sgst, @igst,
-                        @utgst, @pnding, @pnding, GETDATE()
-                    )
-                `);
+                        INSERT INTO OrdersStk (
+                            SRL, SNo, CurrName, CurrRate, DocDate, ItemCode, Qty, Rate, Disc, Amt, PartyCode,
+                            StoreCode, MainType, SubType, Type, Prefix, Narration, BranchCode, Unit, DiscAmt,
+                            MRP, NewRate, TaxCode, TaxAmt, CessAmt, Taxable, BarcodeValue, UserID, CompanyID,
+                            CreatedBy, CreatedDate, ModifiedBy, ModifiedDate, CGST, SGST, IGST, UTGST, Pnding,
+                            ChallanPanding, DelivaryDate
+                        )
+                        VALUES (
+                            @srl, @sNo, @currName, @currRate, @docDate, @itemCode, @qty, @rate, @disc, ROUND(@amt, 0),
+                            @partyCode, @storeCode, @mainType, @subType, @type, @prefix, @narration, @branchCode,
+                            @unit, @discAmt, @mrp, @newRate, @taxCode, @taxAmt, @cessAmt, @taxable, @barcodeValue,
+                            @userId, @companyId, @createdBy, GETDATE(), @modifiedBy, GETDATE(), @cgst, @sgst, @igst,
+                            @utgst, @pnding, @pnding, @delivaryDate
+                        )
+                    `);
         }
 
         res.status(201).json({ message: 'Order created successfully', orderId: orderId });
