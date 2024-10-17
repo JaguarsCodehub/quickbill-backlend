@@ -1,3 +1,4 @@
+import { config } from "dotenv";
 import { Request, Response } from "express";
 
 require('dotenv').config();
@@ -399,101 +400,141 @@ app.get('/items', async (req: Request, res: Response) => {
 });
 
 
-app.post('/createOrder', async (req: Request, res: Response) => {
-  try {
-    const { CustomerCode, Items } = req.body;
-
-    const pool = await getDbConnection();
-
-    // Start a transaction
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
-
+app.post('/api/create-order', async (req: Request, res: Response) => {
+    let connection;
     try {
-      // Generate a new SRL (assuming it's an auto-incrementing field in your database)
-      const result = await transaction
-        .request()
-        .query('SELECT ISNULL(MAX(SRL), 0) + 1 AS NextSRL FROM OrdersStk');
-      const nextSRL = result.recordset[0].NextSRL;
+        connection = await sql.connect(dbConfig);
 
-      // Insert each item in the order
-      for (let i = 0; i < Items.length; i++) {
-        const item = Items[i];
-        await transaction
-          .request()
-          .input('SRL', sql.Int, nextSRL)
-          .input('SNo', sql.Int, i + 1)
-          .input('CurrName', sql.NVarChar, 'INR') // Assuming Indian Rupees
-          .input('CurrRate', sql.Decimal(18, 2), 1) // Assuming 1:1 exchange rate
-          .input('DocDate', sql.Date, new Date())
-          .input('ItemCode', sql.NVarChar, item.ItemCode)
-          .input('Qty', sql.Decimal(18, 2), item.Qty)
-          .input('Rate', sql.Decimal(18, 2), item.Rate)
-          .input('Disc', sql.Decimal(18, 2), item.Disc)
-          .input('Amt', sql.Decimal(18, 2), item.Amount)
-          .input('PartyCode', sql.NVarChar, CustomerCode)
-          .input('StoreCode', sql.NVarChar, 'DEFAULT') // You may need to adjust this
-          .input('MainType', sql.NVarChar, 'SL')
-          .input('SubType', sql.NVarChar, 'RS')
-          .input('Type', sql.NVarChar, 'SOR')
-          .input('Prefix', sql.NVarChar, req.headers.prefix)
-          .input('Narration', sql.NVarChar, '')
-          .input('BranchCode', sql.NVarChar, '') // You may need to adjust this
-          .input('Unit', sql.NVarChar, '')
-          .input('DiscAmt', sql.VarChar, '') // You may need to calculate this
-          .input('MRP', sql.VarChar, '') // You may need to add this to your item data
-          .input('NewRate', sql.Decimal(18, 2), item.Rate)
-          .input('TaxCode', sql.NVarChar, item.TaxCode)
-          .input('TaxAmt', sql.Decimal(18, 2), item.TaxAmt)
-          .input('CessAmt', sql.Decimal(18, 2), 0) // You may need to calculate this
-          .input('Taxable', sql.Decimal(18, 2), item.Taxable)
-          .input('BarcodeValue', sql.NVarChar, '')
-          .input('UserID', sql.Int, req.headers.userid)
-          .input('CompanyID', sql.Int, req.headers.companyid)
-          .input('CreatedBy', sql.Int, req.headers.userid)
-          .input('ModifiedBy', sql.Int, req.headers.userid)
-          .input('CGST', sql.Decimal(18, 2), item.TaxAmt / 2) // Assuming CGST is half of total tax
-          .input('SGST', sql.Decimal(18, 2), item.TaxAmt / 2) // Assuming SGST is half of total tax
-          .input('IGST', sql.Decimal(18, 2), 0) // Assuming no IGST for this example
-          .input('UTGST', sql.Decimal(18, 2), 0) // Assuming no UTGST for this example
-          .input('Pnding', sql.Decimal(18, 2), item.Qty) // Assuming all quantity is pending
-          .input('DelivaryDate', sql.Date, new Date()) // You may want to add this to your order data
-          .query(`
-                        INSERT INTO OrdersStk
-                        ([SRL], [SNo], [CurrName], [CurrRate], [DocDate], [ItemCode], [Qty], [Rate], [Disc], [Amt],
-                        [PartyCode], [StoreCode], [MainType], [SubType], [Type], [Prefix], [Narration], [BranchCode],
-                        [Unit], [DiscAmt], [MRP], [NewRate], [TaxCode], [TaxAmt], [CessAmt], [Taxable], [BarcodeValue],
-                        [UserID], [CompanyID], [CreatedBy], [CreatedDate], [ModifiedBy], [ModifiedDate], [CGST], [SGST],
-                        [IGST], [UTGST], [Pnding], [ChallanPanding], [DelivaryDate])
-                        VALUES
-                        (@SRL, @SNo, @CurrName, @CurrRate, @DocDate, @ItemCode, @Qty, @Rate, @Disc, ROUND(@Amt, 0),
-                        @PartyCode, @StoreCode, @MainType, @SubType, @Type, @Prefix, @Narration, @BranchCode,
-                        @Unit, @DiscAmt, @MRP, @NewRate, @TaxCode, @TaxAmt, @CessAmt, @Taxable, @BarcodeValue,
-                        @UserID, @CompanyID, @CreatedBy, GETDATE(), @ModifiedBy, GETDATE(), @CGST, @SGST,
-                        @IGST, @UTGST, @Pnding, @Pnding, @DelivaryDate)
-                    `);
-      }
+        const {
+            docNo, docDate, orderNo, orderDate, pageNo, partyCode, billAmt, totalQty, netAmt, taxAmt, discAmt,
+            mainType, subType, type, prefix, narration, userId, companyId, createdBy, modifiedBy,
+            partyName, selection, productName, discPer, cgst, sgst, igst, utgst, rate, addCode, totalAmt,
+            items
+        } = req.body;
 
-      // Commit the transaction
-      await transaction.commit();
+        // Insert into Orders table
+        const orderResult = await connection.request()
+            .input('docNo', sql.VarChar, docNo)
+            .input('docDate', sql.DateTime, docDate)
+            .input('orderNo', sql.VarChar, orderNo)
+            .input('orderDate', sql.DateTime, orderDate)
+            .input('pageNo', sql.VarChar, pageNo)
+            .input('partyCode', sql.VarChar, partyCode)
+            .input('billAmt', sql.Decimal, billAmt)
+            .input('totalQty', sql.Decimal, totalQty)
+            .input('netAmt', sql.Decimal, netAmt)
+            .input('taxAmt', sql.Decimal, taxAmt)
+            .input('discAmt', sql.Decimal, discAmt)
+            .input('mainType', sql.VarChar, mainType)
+            .input('subType', sql.VarChar, subType)
+            .input('type', sql.VarChar, type)
+            .input('prefix', sql.VarChar, prefix)
+            .input('narration', sql.VarChar, narration)
+            .input('userId', sql.Int, userId)
+            .input('companyId', sql.Int, companyId)
+            .input('createdBy', sql.Int, createdBy)
+            .input('modifiedBy', sql.Int, modifiedBy)
+            .input('partyName', sql.VarChar, partyName)
+            .input('selection', sql.VarChar, selection)
+            .input('productName', sql.VarChar, productName)
+            .input('discPer', sql.Decimal, discPer)
+            .input('cgst', sql.Decimal, cgst)
+            .input('sgst', sql.Decimal, sgst)
+            .input('igst', sql.Decimal, igst)
+            .input('utgst', sql.Decimal, utgst)
+            .input('rate', sql.Decimal, rate)
+            .input('addCode', sql.VarChar, addCode)
+            .input('totalAmt', sql.Decimal, totalAmt)
+            .query(`
+                INSERT INTO [Orders] (
+                    DocNo, DocDate, PageNo, OrederNo, OrderDate, PartyCode, BillAmt, TotalQty, NetAmt, TaxAmt, DiscAmt,
+                    MainType, SubType, Type, Prefix, Narration, UserID, CompanyID, CreatedBy, CreatedDate,
+                    ModifiedBy, ModifiedDate, PartyName, Selection, ProductName, DiscPer, CGST, SGST, IGST, UTGST, Rate, TotalAmt, AddCode
+                )
+                OUTPUT INSERTED.OrderID
+                VALUES (
+                    @docNo, @docDate, @pageNo, @orderNo, @orderDate, @partyCode, @billAmt, @totalQty, @netAmt,
+                    @taxAmt, @discAmt, @mainType, @subType, @type, @prefix, @narration, @userId,
+                    @companyId, @createdBy, GETDATE(), @modifiedBy, GETDATE(), @partyName, @selection,
+                    @productName, @discPer, @cgst, @sgst, @igst, @utgst, @rate, ROUND(@totalAmt, 0), @addCode
+                )
+            `);
 
-      res
-        .status(201)
-        .json({
-          message: 'Order created successfully',
-          orderNumber: `SOR/${nextSRL}`,
-        });
-    } catch (error) {
-      // If there's an error, roll back the transaction
-      await transaction.rollback();
-      throw error;
+        if (!orderResult.recordset || orderResult.recordset.length === 0) {
+            throw new Error('Failed to insert order: No OrderID returned');
+        }
+
+        const orderId = orderResult.recordset[0].OrderID;
+
+        // Insert items into OrdersStk table
+        for (const item of items) {
+            await connection.request()
+                .input('srl', sql.VarChar, item.srl)
+                .input('sNo', sql.VarChar, item.sNo)
+                .input('currName', sql.VarChar, item.currName)
+                .input('currRate', sql.Decimal, item.currRate)
+                .input('docDate', sql.DateTime, item.docDate)
+                .input('itemCode', sql.VarChar, item.itemCode)
+                .input('qty', sql.Decimal, item.qty)
+                .input('rate', sql.Decimal, item.rate)
+                .input('disc', sql.Decimal, item.disc)
+                .input('amt', sql.Decimal, item.amt)
+                .input('partyCode', sql.VarChar, item.partyCode)
+                .input('storeCode', sql.VarChar, item.storeCode)
+                .input('mainType', sql.VarChar, item.mainType)
+                .input('subType', sql.VarChar, item.subType)
+                .input('type', sql.VarChar, item.type)
+                .input('prefix', sql.VarChar, item.prefix)
+                .input('narration', sql.VarChar, item.narration)
+                .input('branchCode', sql.VarChar, item.branchCode)
+                .input('unit', sql.VarChar, item.unit)
+                .input('discAmt', sql.Decimal, item.discAmt)
+                .input('mrp', sql.Decimal, item.mrp)
+                .input('newRate', sql.Decimal, item.newRate)
+                .input('taxCode', sql.VarChar, item.taxCode)
+                .input('taxAmt', sql.Decimal, item.taxAmt)
+                .input('cessAmt', sql.Decimal, item.cessAmt)
+                .input('taxable', sql.Decimal, item.taxable)
+                .input('barcodeValue', sql.VarChar, item.barcodeValue)
+                .input('userId', sql.Int, item.userId)
+                .input('companyId', sql.Int, item.companyId)
+                .input('createdBy', sql.Int, item.createdBy)
+                .input('modifiedBy', sql.Int, item.modifiedBy)
+                .input('cgst', sql.Decimal, item.cgst)
+                .input('sgst', sql.Decimal, item.sgst)
+                .input('igst', sql.Decimal, item.igst)
+                .input('utgst', sql.Decimal, item.utgst)
+                .input('pnding', sql.Decimal, item.pnding)
+                .input('delivaryDate', sql.DateTime, item.delivaryDate)
+
+                // ... (add all other inputs for item)
+                .query(`
+                    INSERT INTO OrdersStk (
+                        SRL, SNo, CurrName, CurrRate, DocDate, ItemCode, Qty, Rate, Disc, Amt, PartyCode,
+                        StoreCode, MainType, SubType, Type, Prefix, Narration, BranchCode, Unit, DiscAmt,
+                        MRP, NewRate, TaxCode, TaxAmt, CessAmt, Taxable, BarcodeValue, UserID, CompanyID,
+                        CreatedBy, CreatedDate, ModifiedBy, ModifiedDate, CGST, SGST, IGST, UTGST, Pnding,
+                        ChallanPanding, DelivaryDate
+                    )
+                    VALUES (
+                        @srl, @sNo, @currName, @currRate, @docDate, @itemCode, @qty, @rate, @disc, ROUND(@amt, 0),
+                        @partyCode, @storeCode, @mainType, @subType, @type, @prefix, @narration, @branchCode,
+                        @unit, @discAmt, @mrp, @newRate, @taxCode, @taxAmt, @cessAmt, @taxable, @barcodeValue,
+                        @userId, @companyId, @createdBy, GETDATE(), @modifiedBy, GETDATE(), @cgst, @sgst, @igst,
+                        @utgst, @pnding, @pnding, @delivaryDate
+                    )
+                `);
+        }
+
+        res.status(201).json({ message: 'Order created successfully', orderId: orderId });
+    } catch (err: any) {
+        console.error('Error creating order:', err);
+        res.status(500).json({ error: 'An error occurred while creating the order', details: err.message });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
     }
-  } catch (error) {
-    console.error('Error creating order:', error);
-    res
-      .status(500)
-      .json({ error: 'An error occurred while creating the order' });
-  }
 });
 
 module.exports = app;

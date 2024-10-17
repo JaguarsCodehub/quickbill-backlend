@@ -2,3 +2,82 @@
 - Need to validate inputs and need to implement the above feature too Done ✅
 - Get Items / Products from ItemMaster Table and need to show in the dropdown list in the frontend
 - Implement the above for the backend API too
+
+
+const express = require('express');
+const sql = require('mssql');
+const app = express();
+
+app.use(express.json());
+
+// Assuming you have already set up your database connection
+const config = {
+    user: 'your_username',
+    password: 'your_password',
+    server: 'your_server',
+    database: 'your_database',
+    options: {
+        encrypt: true, // Use this if you're on Windows Azure
+        trustServerCertificate: true // Use this if you're on a local dev machine
+    }
+};
+
+app.post('/api/create-order', async (req, res) => {
+    try {
+        await sql.connect(config);
+
+        const {
+            docNo, docDate, orderNo, orderDate, partyCode, billAmt, totalQty, netAmt, taxAmt, discAmt,
+            mainType, subType, type, prefix, narration, userId, companyId, createdBy, modifiedBy,
+            partyName, selection, productName, discPer, cgst, sgst, igst, utgst, rate, totalAmt,
+            items
+        } = req.body;
+
+        // Insert into Orders table
+        const orderResult = await sql.query`
+            INSERT INTO [Orders] (
+                DocNo, DocDate, OrederNo, OrderDate, PartyCode, BillAmt, TotalQty, NetAmt, TaxAmt, DiscAmt,
+                MainType, SubType, Type, Prefix, Narration, UserID, CompanyID, CreatedBy, CreatedDate,
+                ModifiedBy, ModifiedDate, PartyName, Selection, ProductName, DiscPer, CGST, SGST, IGST, UTGST, Rate, TotalAmt
+            )
+            VALUES (
+                ${docNo}, ${docDate}, ${orderNo}, ${orderDate}, ${partyCode}, ${billAmt}, ${totalQty}, ${netAmt},
+                ${taxAmt}, ${discAmt}, ${mainType}, ${subType}, ${type}, ${prefix}, ${narration}, ${userId},
+                ${companyId}, ${createdBy}, GETDATE(), ${modifiedBy}, GETDATE(), ${partyName}, ${selection},
+                ${productName}, ${discPer}, ${cgst}, ${sgst}, ${igst}, ${utgst}, ${rate}, ROUND(${totalAmt}, 0)
+            )
+        `;
+
+        // Insert items into OrdersStk table
+        for (const item of items) {
+            await sql.query`
+                INSERT INTO OrdersStk (
+                    SRL, SNo, CurrName, CurrRate, DocDate, ItemCode, Qty, Rate, Disc, Amt, PartyCode,
+                    StoreCode, MainType, SubType, Type, Prefix, Narration, BranchCode, Unit, DiscAmt,
+                    MRP, NewRate, TaxCode, TaxAmt, CessAmt, Taxable, BarcodeValue, UserID, CompanyID,
+                    CreatedBy, CreatedDate, ModifiedBy, ModifiedDate, CGST, SGST, IGST, UTGST, Pnding,
+                    ChallanPanding, DelivaryDate
+                )
+                VALUES (
+                    ${item.srl}, ${item.sNo}, ${item.currName}, ${item.currRate}, ${docDate}, ${item.itemCode},
+                    ${item.qty}, ${item.rate}, ${item.disc}, ROUND(${item.amt}, 0), ${partyCode}, ${item.storeCode},
+                    ${mainType}, ${subType}, ${type}, ${prefix}, ${item.narration}, ${item.branchCode}, ${item.unit},
+                    ${item.discAmt}, ${item.mrp}, ${item.newRate}, ${item.taxCode}, ${item.taxAmt}, ${item.cessAmt},
+                    ${item.taxable}, ${item.barcodeValue}, ${userId}, ${companyId}, ${createdBy}, GETDATE(),
+                    ${modifiedBy}, GETDATE(), ${item.cgst}, ${item.sgst}, ${item.igst}, ${item.utgst}, ${item.pnding},
+                    ${item.pnding}, ${item.delivaryDate}
+                )
+            `;
+        }
+
+        res.status(201).json({ message: 'Order created successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'An error occurred while creating the order' });
+    } finally {
+        await sql.close();
+    }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
