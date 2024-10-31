@@ -399,7 +399,6 @@ app.get('/items', async (req: Request, res: Response) => {
     }
 });
 
-
 app.post('/api/create-order', async (req: Request, res: Response) => {
     let connection;
     try {
@@ -532,5 +531,14 @@ app.post('/api/create-order', async (req: Request, res: Response) => {
         }
     }
 });
+
+app.post('/api/create-invoice', async (req: Request, res: Response) => {
+    let connection;
+    try {
+
+    } catch (error) {
+
+    }
+})
 
 module.exports = app;
