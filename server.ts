@@ -532,6 +532,77 @@ app.post('/api/create-order', async (req: Request, res: Response) => {
     }
 });
 
+app.get('/invoice-items', async (req: Request, res: Response) => {
+    let pool;
+    try {
+        // Get values from headers
+        const userID = req.header('UserID');
+        const companyID = req.header('CompanyID');
+        const prefix = req.header('Prefix');
+
+        // Validate headers
+        if (!userID || !companyID || !prefix) {
+            return res.status(400).json({ error: "Missing required headers: UserID, CompanyID, or Prefix" });
+        }
+
+        pool = await sql.connect(dbConfig);
+
+        // Query for items
+        const itemsRequest = pool.request();
+        itemsRequest.input('UserID', sql.Int, parseInt(userID));
+        itemsRequest.input('CompanyID', sql.Int, parseInt(companyID));
+
+        const itemsQuery = `
+            SELECT [ItemID], [ItemCode], [ItemName], [PurRate], [PurDisc], [SalRate], [SalDisc],
+                   [Barcode], [OpeningStock], [Unit], [MRP], [TaxCode], [UserID], [CompanyID],
+                   [CreatedBy], [CreatedDate], [ModifiedBy], [ModifiedDate], [GroupCode], [Flag],
+                   [HSNCode], [TaxCategory], [GSTTaxCode], [IGSTTaxCode], [UTGSTTaxCode], [imgPath],
+                   [Catagri], [grosswegiht], [netwegiht], [purity], [print], [makingcharge], [Othercharge]
+            FROM [QuickbillBook].[dbo].[ItemMaster] 
+            WHERE UserID = @UserID AND CompanyID = @CompanyID ORDER BY ItemName ASC`;
+
+        const itemsResult = await itemsRequest.query(itemsQuery);
+
+        // Query for last serial code
+        const serialRequest = pool.request();
+        serialRequest.input('UserID', sql.Int, parseInt(userID));
+        serialRequest.input('CompanyID', sql.Int, parseInt(companyID));
+        serialRequest.input('Prefix', sql.VarChar, prefix);
+
+        const serialQuery = `
+            SELECT TOP 1 ISNULL(DocNo, 0) as SRL 
+            FROM Orders 
+            WHERE MainType='SL' 
+            AND SubType='RS' 
+            AND [Type]='SAL' 
+            AND Prefix=@Prefix
+            AND CompanyID=@CompanyID
+            AND UserID=@UserID
+            ORDER BY SRL DESC`;
+
+        const serialResult = await serialRequest.query(serialQuery);
+
+        const lastSerial = serialResult.recordset[0]?.SRL || '0';
+        const nextSerialNumber = parseInt(lastSerial) + 1;
+        const nextSerial = nextSerialNumber.toString().padStart(6, '0');
+
+        res.json({
+            items: itemsResult.recordset,
+            lastSerial: lastSerial,
+            nextSerial: nextSerial
+        });
+
+    } catch (error) {
+        console.error("Error while fetching items and serial", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (pool) {
+            await pool.close();
+        }
+    }
+});
+
+
 app.post('/api/create-invoice', async (req: Request, res: Response) => {
     let connection;
     try {
