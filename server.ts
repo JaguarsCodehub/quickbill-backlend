@@ -1034,4 +1034,315 @@ app.post('/api/create-return', async (req: Request, res: Response) => {
     }
 });
 
+
+app.get('/purchase-items', async (req: Request, res: Response) => {
+    let pool;
+    try {
+        // Get values from headers
+        const userID = req.header('UserID');
+        const companyID = req.header('CompanyID');
+        const prefix = req.header('Prefix');
+
+        // Validate headers
+        if (!userID || !companyID || !prefix) {
+            return res.status(400).json({ error: "Missing required headers: UserID, CompanyID, or Prefix" });
+        }
+
+        pool = await sql.connect(dbConfig);
+
+        // Query for items
+        const itemsRequest = pool.request();
+        itemsRequest.input('UserID', sql.Int, parseInt(userID));
+        itemsRequest.input('CompanyID', sql.Int, parseInt(companyID));
+
+        const itemsQuery = `
+            SELECT [ItemID], [ItemCode], [ItemName], [PurRate], [PurDisc], [SalRate], [SalDisc],
+                   [Barcode], [OpeningStock], [Unit], [MRP], [TaxCode], [UserID], [CompanyID],
+                   [CreatedBy], [CreatedDate], [ModifiedBy], [ModifiedDate], [GroupCode], [Flag],
+                   [HSNCode], [TaxCategory], [GSTTaxCode], [IGSTTaxCode], [UTGSTTaxCode], [imgPath],
+                   [Catagri], [grosswegiht], [netwegiht], [purity], [print], [makingcharge], [Othercharge]
+            FROM [QuickbillBook].[dbo].[ItemMaster] 
+            WHERE UserID = @UserID AND CompanyID = @CompanyID ORDER BY ItemName ASC`;
+
+        const itemsResult = await itemsRequest.query(itemsQuery);
+
+        // Query for last serial code
+        const serialRequest = pool.request();
+        serialRequest.input('UserID', sql.Int, parseInt(userID));
+        serialRequest.input('CompanyID', sql.Int, parseInt(companyID));
+        serialRequest.input('Prefix', sql.VarChar, prefix);
+
+        const serialQuery = `
+            Select top 1 isnull(DocNo,0) as SRL from purchase 
+						where 
+						MainType='PR' AND
+                        SubType='RP' AND
+						[Type]='PUR' 
+						and Prefix=@Prefix
+						and CompanyID=@CompanyID
+						and UserID=@UserID
+						order by DocNo desc`;
+
+
+
+        const serialResult = await serialRequest.query(serialQuery);
+
+        const lastSerial = serialResult.recordset[0]?.SRL || '0';
+        const nextSerialNumber = parseInt(lastSerial) + 1;
+        const nextSerial = nextSerialNumber.toString().padStart(6, '0');
+
+        res.json({
+            items: itemsResult.recordset,
+            lastSerial: lastSerial,
+            nextSerial: nextSerial
+        });
+
+    } catch (error) {
+        console.error("Error while fetching items and serial", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (pool) {
+            await pool.close();
+        }
+    }
+});
+
+app.post('/api/create-purchase', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        connection = await sql.connect(dbConfig);
+        const {
+            docNo, docDate, billNo, billDate, partyCode, billAmt, totalQty, netAmt, taxAmt, discAmt,
+            mainType, subType, type, prefix, narration, userId, companyId, createdBy, modifiedBy,
+            partyName, selection, productName, discPer, cgst, sgst, igst, utgst, rate, totalAmt,
+            status, addCode, roundoff, extrCharch, discountExtra, exchargelager, exDicoutlager,
+            items
+        } = req.body;
+
+        // Insert into Purchase table
+        const purchaseResult = await connection.request()
+            .input('docNo', sql.VarChar, docNo)
+            .input('docDate', sql.DateTime, docDate)
+            .input('billNo', sql.VarChar, billNo)
+            .input('billDate', sql.DateTime, billDate)
+            .input('partyCode', sql.VarChar, partyCode)
+            .input('billAmt', sql.Decimal, billAmt)
+            .input('totalQty', sql.Decimal, totalQty)
+            .input('netAmt', sql.Decimal, netAmt)
+            .input('taxAmt', sql.Decimal, taxAmt)
+            .input('discAmt', sql.Decimal, discAmt)
+            .input('mainType', sql.VarChar, mainType)
+            .input('subType', sql.VarChar, subType)
+            .input('type', sql.VarChar, type)
+            .input('prefix', sql.VarChar, prefix)
+            .input('narration', sql.VarChar, narration)
+            .input('userId', sql.Int, userId)
+            .input('companyId', sql.Int, companyId)
+            .input('createdBy', sql.Int, createdBy)
+            .input('modifiedBy', sql.Int, modifiedBy)
+            .input('partyName', sql.VarChar, partyName)
+            .input('selection', sql.VarChar, selection)
+            .input('productName', sql.VarChar, productName)
+            .input('discPer', sql.Decimal, discPer)
+            .input('cgst', sql.Decimal, cgst)
+            .input('sgst', sql.Decimal, sgst)
+            .input('igst', sql.Decimal, igst)
+            .input('utgst', sql.Decimal, utgst)
+            .input('rate', sql.Decimal, rate)
+            .input('totalAmt', sql.Decimal, totalAmt)
+            .input('status', sql.VarChar, status)
+            .input('addCode', sql.VarChar, addCode)
+            .input('roundoff', sql.Decimal, roundoff)
+            .input('extrCharch', sql.Decimal, extrCharch)
+            .input('discountExtra', sql.Decimal, discountExtra)
+            .input('exchargelager', sql.VarChar, exchargelager)
+            .input('exDicoutlager', sql.VarChar, exDicoutlager)
+            .query(`
+                INSERT INTO [Purchase] (
+                    DocNo, DocDate, BillNo, BillDate, PartyCode, BillAmt, TotalQty, NetAmt, TaxAmt,
+                    DiscAmt, MainType, SubType, Type, Prefix, Narration, UserID, CompanyID, CreatedBy,
+                    CreatedDate, ModifiedBy, ModifiedDate, PartyName, Selection, ProductName, DiscPer,
+                    CGST, SGST, IGST, UTGST, Rate, TotalAmt, Status, AddCode, Roundoff, ExtrCharch,
+                    DiscountExtra, Exchargelager, ExDicoutlager
+                )
+                OUTPUT INSERTED.PurchaseID
+                VALUES (
+                    @docNo, @docDate, @billNo, @billDate, @partyCode, @billAmt, @totalQty, @netAmt,
+                    @taxAmt, @discAmt, @mainType, @subType, @type, @prefix, @narration, @userId,
+                    @companyId, @createdBy, GETDATE(), @modifiedBy, GETDATE(), @partyName, @selection,
+                    @productName, @discPer, @cgst, @sgst, @igst, @utgst, @rate, ROUND(@totalAmt, 0),
+                    @status, @addCode, @roundoff, @extrCharch, @discountExtra, @exchargelager,
+                    @exDicoutlager
+                )
+            `);
+
+        if (!purchaseResult.recordset || purchaseResult.recordset.length === 0) {
+            throw new Error('Failed to insert purchase: No PurchaseID returned');
+        }
+
+        const purchaseId = purchaseResult.recordset[0].PurchaseID;
+
+        // Insert items into Stock table
+        for (const item of items) {
+            await connection.request()
+                .input('srl', sql.VarChar, item.srl)
+                .input('sNo', sql.VarChar, item.sNo)
+                .input('currName', sql.VarChar, item.currName)
+                .input('currRate', sql.Decimal, item.currRate)
+                .input('docDate', sql.DateTime, item.docDate)
+                .input('itemCode', sql.VarChar, item.itemCode)
+                .input('qty', sql.Decimal, item.qty)
+                .input('rate', sql.Decimal, item.rate)
+                .input('disc', sql.Decimal, item.disc)
+                .input('amt', sql.Decimal, item.amt)
+                .input('partyCode', sql.VarChar, item.partyCode)
+                .input('storeCode', sql.VarChar, item.storeCode)
+                .input('mainType', sql.VarChar, item.mainType)
+                .input('subType', sql.VarChar, item.subType)
+                .input('type', sql.VarChar, item.type)
+                .input('prefix', sql.VarChar, item.prefix)
+                .input('narration', sql.VarChar, item.narration)
+                .input('branchCode', sql.VarChar, item.branchCode)
+                .input('unit', sql.VarChar, item.unit)
+                .input('discAmt', sql.Decimal, item.discAmt)
+                .input('mrp', sql.Decimal, item.mrp)
+                .input('newRate', sql.Decimal, item.newRate)
+                .input('taxCode', sql.VarChar, item.taxCode)
+                .input('taxAmt', sql.Decimal, item.taxAmt)
+                .input('cessAmt', sql.Decimal, item.cessAmt)
+                .input('taxable', sql.Decimal, item.taxable)
+                .input('barcodeValue', sql.VarChar, item.barcodeValue)
+                .input('userId', sql.Int, item.userId)
+                .input('companyId', sql.Int, item.companyId)
+                .input('createdBy', sql.Int, item.createdBy)
+                .input('modifiedBy', sql.Int, item.modifiedBy)
+                .input('cgst', sql.Decimal, item.cgst)
+                .input('sgst', sql.Decimal, item.sgst)
+                .input('igst', sql.Decimal, item.igst)
+                .input('utgst', sql.Decimal, item.utgst)
+                .input('pnding', sql.Decimal, item.pnding)
+                .input('colours', sql.VarChar, item.colours)
+                .input('s1', sql.VarChar, item.s1)
+                .input('q1', sql.Decimal, item.q1)
+                .input('s2', sql.VarChar, item.s2)
+                .input('q2', sql.Decimal, item.q2)
+                .input('s3', sql.VarChar, item.s3)
+                .input('q3', sql.Decimal, item.q3)
+                .input('s4', sql.VarChar, item.s4)
+                .input('q4', sql.Decimal, item.q4)
+                .input('s5', sql.VarChar, item.s5)
+                .input('q5', sql.Decimal, item.q5)
+                .input('s6', sql.VarChar, item.s6)
+                .input('q6', sql.Decimal, item.q6)
+                .input('s7', sql.VarChar, item.s7)
+                .input('q7', sql.Decimal, item.q7)
+                .input('s8', sql.VarChar, item.s8)
+                .input('q8', sql.Decimal, item.q8)
+                .input('s9', sql.VarChar, item.s9)
+                .input('q9', sql.Decimal, item.q9)
+                .query(`
+                    INSERT INTO Stock (
+                        SRL, SNo, CurrName, CurrRate, DocDate, ItemCode, Qty, Rate, Disc, Amt,
+                        PartyCode, StoreCode, MainType, SubType, Type, Prefix, Narration,
+                        BranchCode, Unit, DiscAmt, MRP, NewRate, TaxCode, TaxAmt, CessAmt,
+                        Taxable, BarcodeValue, UserID, CompanyID, CreatedBy, CreatedDate,
+                        ModifiedBy, ModifiedDate, CGST, SGST, IGST, UTGST, Pnding,
+                        Colours, S1, Q1, S2, Q2, S3, Q3, S4, Q4, S5, Q5, S6, Q6, S7, Q7, S8, Q8, S9, Q9
+                    )
+                    VALUES (
+                        @srl, @sNo, @currName, @currRate, @docDate, @itemCode, @qty, @rate,
+                        @disc, ROUND(@amt, 0), @partyCode, @storeCode, @mainType, @subType,
+                        @type, @prefix, @narration, @branchCode, @unit, @discAmt, @mrp,
+                        @newRate, @taxCode, @taxAmt, @cessAmt, @taxable, @barcodeValue,
+                        @userId, @companyId, @createdBy, GETDATE(), @modifiedBy, GETDATE(),
+                        @cgst, @sgst, @igst, @utgst, @pnding, @colours,
+                        @s1, @q1, @s2, @q2, @s3, @q3, @s4, @q4, @s5, @q5,
+                        @s6, @q6, @s7, @q7, @s8, @q8, @s9, @q9
+                    )
+                `);
+        }
+
+        res.status(201).json({ message: 'Purchase created successfully', purchaseId: purchaseId });
+    } catch (err: any) {
+        console.error('Error creating purchase:', err);
+        res.status(500).json({ error: 'An error occurred while creating the purchase', details: err.message });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
+
+app.get('/purchase-return-items', async (req: Request, res: Response) => {
+    let pool;
+    try {
+        // Get values from headers
+        const userID = req.header('UserID');
+        const companyID = req.header('CompanyID');
+        const prefix = req.header('Prefix');
+
+        // Validate headers
+        if (!userID || !companyID || !prefix) {
+            return res.status(400).json({ error: "Missing required headers: UserID, CompanyID, or Prefix" });
+        }
+
+        pool = await sql.connect(dbConfig);
+
+        // Query for items
+        const itemsRequest = pool.request();
+        itemsRequest.input('UserID', sql.Int, parseInt(userID));
+        itemsRequest.input('CompanyID', sql.Int, parseInt(companyID));
+
+        const itemsQuery = `
+            SELECT [ItemID], [ItemCode], [ItemName], [PurRate], [PurDisc], [SalRate], [SalDisc],
+                   [Barcode], [OpeningStock], [Unit], [MRP], [TaxCode], [UserID], [CompanyID],
+                   [CreatedBy], [CreatedDate], [ModifiedBy], [ModifiedDate], [GroupCode], [Flag],
+                   [HSNCode], [TaxCategory], [GSTTaxCode], [IGSTTaxCode], [UTGSTTaxCode], [imgPath],
+                   [Catagri], [grosswegiht], [netwegiht], [purity], [print], [makingcharge], [Othercharge]
+            FROM [QuickbillBook].[dbo].[ItemMaster] 
+            WHERE UserID = @UserID AND CompanyID = @CompanyID ORDER BY ItemName ASC`;
+
+        const itemsResult = await itemsRequest.query(itemsQuery);
+
+        // Query for last serial code
+        const serialRequest = pool.request();
+        serialRequest.input('UserID', sql.Int, parseInt(userID));
+        serialRequest.input('CompanyID', sql.Int, parseInt(companyID));
+        serialRequest.input('Prefix', sql.VarChar, prefix);
+
+        const serialQuery = `
+            Select top 1 isnull(DocNo,0) as SRL from purchase 
+						where 
+						MainType='PR' AND
+                        SubType='RP' AND
+						[Type]='PIR' 
+						and Prefix=@Prefix
+						and CompanyID=@CompanyID
+						and UserID=@UserID
+						order by DocNo desc`;
+
+
+
+        const serialResult = await serialRequest.query(serialQuery);
+
+        const lastSerial = serialResult.recordset[0]?.SRL || '0';
+        const nextSerialNumber = parseInt(lastSerial) + 1;
+        const nextSerial = nextSerialNumber.toString().padStart(6, '0');
+
+        res.json({
+            items: itemsResult.recordset,
+            lastSerial: lastSerial,
+            nextSerial: nextSerial
+        });
+
+    } catch (error) {
+        console.error("Error while fetching items and serial", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (pool) {
+            await pool.close();
+        }
+    }
+});
+
 module.exports = app;
