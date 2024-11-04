@@ -5,9 +5,7 @@
 
 - Sales: Invoice - Sales T, SL, RS, SAL
 		 Return - Sales T, SL, NS, SRT
-
 		 Inside Sales Table
-
          Need to create endpoints for the Invoice and Return inside sales table
 
 Select top 1 isnull(DocNo,0) as SRL from sales 
@@ -17,93 +15,3 @@ Select top 1 isnull(DocNo,0) as SRL from sales
 						and CompanyID=@CompanyID
 						and UserID=@UserID
 						order by DocNo desc
-
-INSERT INTO [Sales]
-           ([DocNo]
-           ,[DocDate]
-           ,[BillNo]
-           ,[BillDate]
-           ,[PartyCode]
-           ,[BillAmt]
-           ,[TotalQty]
-           ,[NetAmt]
-           ,[TaxAmt]
-           ,[DiscAmt]
-           ,[MainType]
-           ,[SubType]
-           ,[Type]
-           ,[Prefix]
-           ,[Narration]
-           ,[UserID]
-           ,[CompanyID]
-           ,[CreatedBy]
-           ,[CreatedDate]
-           ,[ModifiedBy]
-           ,[ModifiedDate]
-           ,[PartyName]
-           ,[Selection]
-           ,[ProductName]
-           ,[DiscPer]
-           ,[CGST]
-           ,[SGST]
-           ,[IGST]
-           ,[UTGST]
-           ,[Rate]
-           ,[TotalAmt]
-		   ,[Status]
-		   ,[AddCode]
-		   ,[Roundoff]
-		   ,[ExtrCharch]
-		   ,[DiscountExtra]
-		   ,[Exchargelager]
-            ,[RefVoucherNo],[RefVoucherDate],[FileName],[Transpoter],[LRNo],[EWayBillNo],[ModeofTarn],[Dispatch],[NoPackage],[eInvRemarks],[PlaceOfSuply]
-		   )
-     VALUES
-           (@DocNo
-           ,@DocDate
-           ,@BillNo
-           ,@BillDate
-           ,@PartyCode
-           ,@BillAmt
-           ,@TotalQty
-           ,@NetAmt
-           ,@TaxAmt
-           ,@DiscAmt
-           ,@MainType
-           ,@SubType
-           ,@Type
-           ,@Prefix
-           ,@Narration
-           ,@UserID
-           ,@CompanyID
-           ,@CreatedBy
-           ,GETDATE()
-           ,@ModifiedBy
-           ,GETDATE()
-            ,@PartyName 
-	,@Selection 
-	,@ProductName
-	,@DiscPer 
-	,@CGST 
-	,@SGST
-	,@IGST 
-	,@UTGST 
-	,@Rate
-	,Round(@TotalAmt,0) 
-	,@Status
-	,@AddCode
-	,@Roundoff 
-    ,@ExtrCharch 
-    ,@DiscountExtra
-	,@Exchargelager,
-	@RefVoucherNo ,
-	@RefVoucherDate,
-	@FileName,
-	@Transpoter,
-	@LRNo,
-	@EWayBillNo,
-	@ModeofTarn,
-	@Dispatch,
-	@NoPackage,
-	@eInvRemarks,
-	@PlaceOfSuply)
