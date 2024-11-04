@@ -602,7 +602,6 @@ app.get('/invoice-items', async (req: Request, res: Response) => {
     }
 });
 
-
 app.post('/api/create-invoice', async (req: Request, res: Response) => {
     let connection;
     try {
@@ -614,7 +613,7 @@ app.post('/api/create-invoice', async (req: Request, res: Response) => {
             status, addCode, roundoff, extrCharch, discountExtra, exchargelager,
             refVoucherNo, refVoucherDate, fileName, transpoter, lrNo, eWayBillNo, modeofTarn,
             dispatch, noPackage, eInvRemarks, placeOfSuply,
-            items // Array of items for SalesStk
+            items
         } = req.body;
 
         // Insert into Sales table
@@ -851,6 +850,186 @@ app.get('/return-items', async (req: Request, res: Response) => {
     } finally {
         if (pool) {
             await pool.close();
+        }
+    }
+});
+
+app.post('/api/create-return', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        connection = await sql.connect(dbConfig);
+        const {
+            docNo, docDate, billNo, billDate, partyCode, billAmt, totalQty, netAmt, taxAmt, discAmt,
+            mainType, subType, type, prefix, narration, userId, companyId, createdBy, modifiedBy,
+            partyName, selection, productName, discPer, cgst, sgst, igst, utgst, rate, totalAmt,
+            status, addCode, roundoff, extrCharch, discountExtra, exchargelager,
+            refVoucherNo, refVoucherDate, fileName, transpoter, lrNo, eWayBillNo, modeofTarn,
+            dispatch, noPackage, eInvRemarks, placeOfSuply,
+            items // Array of items for SalesStk
+        } = req.body;
+
+        // Insert into Sales table
+        const saleResult = await connection.request()
+            .input('docNo', sql.VarChar, docNo)
+            .input('docDate', sql.DateTime, docDate)
+            .input('billNo', sql.VarChar, billNo)
+            .input('billDate', sql.DateTime, billDate)
+            .input('partyCode', sql.VarChar, partyCode)
+            .input('billAmt', sql.Decimal, billAmt)
+            .input('totalQty', sql.Decimal, totalQty)
+            .input('netAmt', sql.Decimal, netAmt)
+            .input('taxAmt', sql.Decimal, taxAmt)
+            .input('discAmt', sql.Decimal, discAmt)
+            .input('mainType', sql.VarChar, mainType)
+            .input('subType', sql.VarChar, subType)
+            .input('type', sql.VarChar, type)
+            .input('prefix', sql.VarChar, prefix)
+            .input('narration', sql.VarChar, narration)
+            .input('userId', sql.Int, userId)
+            .input('companyId', sql.Int, companyId)
+            .input('createdBy', sql.Int, createdBy)
+            .input('modifiedBy', sql.Int, modifiedBy)
+            .input('partyName', sql.VarChar, partyName)
+            .input('selection', sql.VarChar, selection)
+            .input('productName', sql.VarChar, productName)
+            .input('discPer', sql.Decimal, discPer)
+            .input('cgst', sql.Decimal, cgst)
+            .input('sgst', sql.Decimal, sgst)
+            .input('igst', sql.Decimal, igst)
+            .input('utgst', sql.Decimal, utgst)
+            .input('rate', sql.Decimal, rate)
+            .input('totalAmt', sql.Decimal, totalAmt)
+            .input('status', sql.VarChar, status)
+            .input('addCode', sql.VarChar, addCode)
+            .input('roundoff', sql.Decimal, roundoff)
+            .input('extrCharch', sql.Decimal, extrCharch)
+            .input('discountExtra', sql.Decimal, discountExtra)
+            .input('exchargelager', sql.VarChar, exchargelager)
+            .input('refVoucherNo', sql.VarChar, refVoucherNo)
+            .input('refVoucherDate', sql.DateTime, refVoucherDate)
+            .input('fileName', sql.VarChar, fileName)
+            .input('transpoter', sql.VarChar, transpoter)
+            .input('lrNo', sql.VarChar, lrNo)
+            .input('eWayBillNo', sql.VarChar, eWayBillNo)
+            .input('modeofTarn', sql.VarChar, modeofTarn)
+            .input('dispatch', sql.VarChar, dispatch)
+            .input('noPackage', sql.VarChar, noPackage)
+            .input('eInvRemarks', sql.VarChar, eInvRemarks)
+            .input('placeOfSuply', sql.VarChar, placeOfSuply)
+            .query(`
+                INSERT INTO [Sales] (
+                    DocNo, DocDate, BillNo, BillDate, PartyCode, BillAmt, TotalQty, NetAmt, TaxAmt, 
+                    DiscAmt, MainType, SubType, Type, Prefix, Narration, UserID, CompanyID, CreatedBy, 
+                    CreatedDate, ModifiedBy, ModifiedDate, PartyName, Selection, ProductName, DiscPer, 
+                    CGST, SGST, IGST, UTGST, Rate, TotalAmt, Status, AddCode, Roundoff, ExtrCharch, 
+                    DiscountExtra, Exchargelager, RefVoucherNo, RefVoucherDate, FileName, Transpoter, 
+                    LRNo, EWayBillNo, ModeofTarn, Dispatch, NoPackage, eInvRemarks, PlaceOfSuply
+                )
+                OUTPUT INSERTED.SalesID
+                VALUES (
+                    @docNo, @docDate, @billNo, @billDate, @partyCode, @billAmt, @totalQty, @netAmt,
+                    @taxAmt, @discAmt, @mainType, @subType, @type, @prefix, @narration, @userId,
+                    @companyId, @createdBy, GETDATE(), @modifiedBy, GETDATE(), @partyName, @selection,
+                    @productName, @discPer, @cgst, @sgst, @igst, @utgst, @rate, ROUND(@totalAmt, 0),
+                    @status, @addCode, @roundoff, @extrCharch, @discountExtra, @exchargelager,
+                    @refVoucherNo, @refVoucherDate, @fileName, @transpoter, @lrNo, @eWayBillNo,
+                    @modeofTarn, @dispatch, @noPackage, @eInvRemarks, @placeOfSuply
+                )
+            `);
+
+        if (!saleResult.recordset || saleResult.recordset.length === 0) {
+            throw new Error('Failed to insert sale: No SalesID returned');
+        }
+
+        const salesId = saleResult.recordset[0].SalesID;
+
+        // Insert items into Stock table (similar to OrdersStk)
+        for (const item of items) {
+            await connection.request()
+                .input('srl', sql.VarChar, item.srl)
+                .input('sNo', sql.VarChar, item.sNo)
+                .input('currName', sql.VarChar, item.currName)
+                .input('currRate', sql.Decimal, item.currRate)
+                .input('docDate', sql.DateTime, item.docDate)
+                .input('itemCode', sql.VarChar, item.itemCode)
+                .input('qty', sql.Decimal, item.qty)
+                .input('rate', sql.Decimal, item.rate)
+                .input('disc', sql.Decimal, item.disc)
+                .input('amt', sql.Decimal, item.amt)
+                .input('partyCode', sql.VarChar, item.partyCode)
+                .input('storeCode', sql.VarChar, item.storeCode)
+                .input('mainType', sql.VarChar, item.mainType)
+                .input('subType', sql.VarChar, item.subType)
+                .input('type', sql.VarChar, item.type)
+                .input('prefix', sql.VarChar, item.prefix)
+                .input('narration', sql.VarChar, item.narration)
+                .input('branchCode', sql.VarChar, item.branchCode)
+                .input('unit', sql.VarChar, item.unit)
+                .input('discAmt', sql.Decimal, item.discAmt)
+                .input('mrp', sql.Decimal, item.mrp)
+                .input('newRate', sql.Decimal, item.newRate)
+                .input('taxCode', sql.VarChar, item.taxCode)
+                .input('taxAmt', sql.Decimal, item.taxAmt)
+                .input('cessAmt', sql.Decimal, item.cessAmt)
+                .input('taxable', sql.Decimal, item.taxable)
+                .input('barcodeValue', sql.VarChar, item.barcodeValue)
+                .input('userId', sql.Int, item.userId)
+                .input('companyId', sql.Int, item.companyId)
+                .input('createdBy', sql.Int, item.createdBy)
+                .input('modifiedBy', sql.Int, item.modifiedBy)
+                .input('cgst', sql.Decimal, item.cgst)
+                .input('sgst', sql.Decimal, item.sgst)
+                .input('igst', sql.Decimal, item.igst)
+                .input('utgst', sql.Decimal, item.utgst)
+                .input('pnding', sql.Decimal, item.pnding)
+                .input('colours', sql.VarChar, item.colours)
+                .input('s1', sql.VarChar, item.s1)
+                .input('q1', sql.Decimal, item.q1)
+                .input('s2', sql.VarChar, item.s2)
+                .input('q2', sql.Decimal, item.q2)
+                .input('s3', sql.VarChar, item.s3)
+                .input('q3', sql.Decimal, item.q3)
+                .input('s4', sql.VarChar, item.s4)
+                .input('q4', sql.Decimal, item.q4)
+                .input('s5', sql.VarChar, item.s5)
+                .input('q5', sql.Decimal, item.q5)
+                .input('s6', sql.VarChar, item.s6)
+                .input('q6', sql.Decimal, item.q6)
+                .input('s7', sql.VarChar, item.s7)
+                .input('q7', sql.Decimal, item.q7)
+                .input('s8', sql.VarChar, item.s8)
+                .input('q8', sql.Decimal, item.q8)
+                .input('s9', sql.VarChar, item.s9)
+                .input('q9', sql.Decimal, item.q9)
+                .query(`
+                    INSERT INTO Stock (
+                        SRL, SNo, CurrName, CurrRate, DocDate, ItemCode, Qty, Rate, Disc, Amt,
+                        PartyCode, StoreCode, MainType, SubType, Type, Prefix, Narration,
+                        BranchCode, Unit, DiscAmt, MRP, NewRate, TaxCode, TaxAmt, CessAmt,
+                        Taxable, BarcodeValue, UserID, CompanyID, CreatedBy, CreatedDate,
+                        ModifiedBy, ModifiedDate, CGST, SGST, IGST, UTGST, Pnding,
+                        Colours, S1, Q1, S2, Q2, S3, Q3, S4, Q4, S5, Q5, S6, Q6, S7, Q7, S8, Q8, S9, Q9
+                    )
+                    VALUES (
+                        @srl, @sNo, @currName, @currRate, @docDate, @itemCode, @qty, @rate,
+                        @disc, ROUND(@amt, 0), @partyCode, @storeCode, @mainType, @subType,
+                        @type, @prefix, @narration, @branchCode, @unit, @discAmt, @mrp,
+                        @newRate, @taxCode, @taxAmt, @cessAmt, @taxable, @barcodeValue,
+                        @userId, @companyId, @createdBy, GETDATE(), @modifiedBy, GETDATE(),
+                        @cgst, @sgst, @igst, @utgst, @pnding, @colours,
+                        @s1, @q1, @s2, @q2, @s3, @q3, @s4, @q4, @s5, @q5,
+                        @s6, @q6, @s7, @q7, @s8, @q8, @s9, @q9
+                    )
+                `);
+        }
+
+        res.status(201).json({ message: 'Invoice created successfully', salesId: salesId });
+    } catch (err: any) {
+        console.error('Error creating invoice:', err);
+        res.status(500).json({ error: 'An error occurred while creating the invoice', details: err.message });
+    } finally {
+        if (connection) {
+            await connection.close();
         }
     }
 });
