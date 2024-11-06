@@ -1345,4 +1345,102 @@ app.get('/purchase-return-items', async (req: Request, res: Response) => {
     }
 });
 
+app.get('/api/total-sales', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        const userID = req.header('UserID');
+        const companyID = req.header('CompanyID');
+        const prefix = req.header('Prefix');
+
+        // Validate headers
+        if (!userID || !companyID || !prefix) {
+            return res.status(400).json({ error: "Missing required headers: UserID, CompanyID, or Prefix" });
+        }
+
+        connection = await getDbConnection();
+        const request = connection.request();
+
+        request.input('UserID', sql.Int, parseInt(userID));
+        request.input('CompanyID', sql.Int, parseInt(companyID));
+        request.input('Prefix', sql.VarChar, prefix);
+
+        const query = `
+            SELECT [SalesID]
+                  ,[DocNo]
+                  ,[DocDate]
+                  ,[BillNo]
+                  ,[BillDate]
+                  ,[PartyCode]
+                  ,[BillAmt]
+                  ,[TotalQty]
+                  ,[NetAmt]
+                  ,[TaxAmt]
+                  ,[DiscAmt]
+                  ,[MainType]
+                  ,[SubType]
+                  ,[Type]
+                  ,[Prefix]
+                  ,[UserID]
+                  ,[CompanyID]
+                  ,[CreatedBy]
+                  ,[CreatedDate]
+                  ,[ModifiedBy]
+                  ,[ModifiedDate]
+                  ,[PartyName]
+                  ,[Selection]
+                  ,[ProductName]
+                  ,[DiscPer]
+                  ,[CGST]
+                  ,[SGST]
+                  ,[IGST]
+                  ,[UTGST]
+                  ,[Narration]
+                  ,[TotalAmt]
+                  ,[Rate]
+                  ,[Status]
+                  ,[EWayBillNo]
+                  ,[EWayBillDate]
+                  ,[EWayBillValidTillDate]
+                  ,[eInvStatus]
+                  ,[eInvIRN]
+                  ,[eInvAckNo]
+                  ,[eInvAckDate]
+                  ,[eInvSignedQRCodeData]
+                  ,[eInvSignedQRCodeFileName]
+                  ,[eInvRemarks]
+                  ,[PlaceOfSuply]
+                  ,[Transpoter]
+                  ,[LRNo]
+                  ,[ModeofTarn]
+                  ,[NoPackage]
+                  ,[Dispatch]
+                  ,[FrihtMOP]
+                  ,[AddCode]
+                  ,[eInvCancleDate]
+                  ,[Colour]
+                  ,[Roundoff]
+                  ,[ExtrCharch]
+                  ,[DiscountExtra]
+                  ,[Exchargelager]
+                  ,[ExDicoutlager]
+                  ,[debitpick]
+                  ,[RefVoucherNo]
+                  ,[RefVoucherDate]
+                  ,[FileName]
+              FROM [QuickbillBook].[dbo].[Sales]
+              WHERE UserID = @UserID AND CompanyID = @CompanyID AND Prefix = @Prefix
+        `;
+
+        const result = await request.query(query);
+        res.json(result.recordset);
+    } catch (error) {
+        console.error("Error fetching total sales:", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
+
 module.exports = app;
