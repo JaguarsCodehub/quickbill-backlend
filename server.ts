@@ -1518,4 +1518,56 @@ app.get('/api/total-purchases', async (req: Request, res: Response) => {
     }
 });
 
+app.get('/api/sales-vs-purchases', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        const userID = req.header('UserID');
+        const companyID = req.header('CompanyID');
+        const prefix = req.header('Prefix');
+
+        // Validate headers
+        if (!userID || !companyID || !prefix) {
+            return res.status(400).json({ error: "Missing required headers: UserID, CompanyID, or Prefix" });
+        }
+
+        connection = await getDbConnection();
+        const request = connection.request();
+
+        request.input('UserID', sql.Int, parseInt(userID));
+        request.input('CompanyID', sql.Int, parseInt(companyID));
+        request.input('Prefix', sql.VarChar, prefix);
+
+        // Fetch total sales
+        const salesQuery = `
+            SELECT SUM(BillAmt) AS TotalSales
+            FROM [QuickbillBook].[dbo].[Sales]
+            WHERE UserID = @UserID AND CompanyID = @CompanyID AND Prefix = @Prefix
+        `;
+        const salesResult = await request.query(salesQuery);
+        const totalSales = salesResult.recordset[0]?.TotalSales || 0;
+
+        // Fetch total purchases
+        const purchasesQuery = `
+            SELECT SUM(BillAmt) AS TotalPurchases
+            FROM [QuickbillBook].[dbo].[Purchase]
+            WHERE UserID = @UserID AND CompanyID = @CompanyID AND Prefix = @Prefix
+        `;
+        const purchasesResult = await request.query(purchasesQuery);
+        const totalPurchases = purchasesResult.recordset[0]?.TotalPurchases || 0;
+
+        // Return combined result
+        res.json({
+            totalSales,
+            totalPurchases
+        });
+    } catch (error) {
+        console.error("Error fetching sales vs purchases:", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
+
 module.exports = app;
