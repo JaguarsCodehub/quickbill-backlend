@@ -22,3 +22,5 @@ Select top 1 isnull(DocNo,0) as SRL from sales
 - Need to add the validation for the inputs in the User Interface Done ✅
 - Multiple Orders need to be saved to a Single Invoice (Table) Done ✅
 - Calculation of Total Order with all the taxes and amounts needs to be done Done ✅
+
+Mostly all the Backend Work is Done, Only the Individual Comparison Chart and Attachments are Left
