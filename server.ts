@@ -3751,4 +3751,156 @@ app.get('/api/sales-vs-purchases', async (req: Request, res: Response) => {
     }
 });
 
+app.get('/api/accounts/cash', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        const userID = req.header('UserID');
+        // const companyID = req.header('CompanyID');
+
+        // Validate headers
+        if (!userID) {
+            return res.status(400).json({ error: "Missing required headers: UserID or CompanyID" });
+        }
+
+        connection = await sql.connect(dbConfig);
+
+        const query = `
+            SELECT TOP 1000 [CustomerID]
+                  ,[CustomerName]
+                  ,[CustomerGroup]
+                  ,[CustomerType]
+                  ,[ContactPerson]
+                  ,[Address1]
+                  ,[Address2]
+                  ,[Address3]
+                  ,[City]
+                  ,[Pin]
+                  ,[State]
+                  ,[Country]
+                  ,[Mobile1]
+                  ,[Mobile2]
+                  ,[Telephone1]
+                  ,[Telephone2]
+                  ,[Email]
+                  ,[Website]
+                  ,[GSTTIN]
+                  ,[PANNo]
+                  ,[VATNo]
+                  ,[TINNo]
+                  ,[LicenseNo1]
+                  ,[License2]
+                  ,[Opening]
+                  ,[CompanyID]
+                  ,[UserID]
+                  ,[Tag1]
+                  ,[Tag2]
+                  ,[Tag3]
+                  ,[Tag4]
+                  ,[Tag5]
+                  ,[CreatedBy]
+                  ,[CreatedDate]
+                  ,[ModifiedBy]
+                  ,[ModifiedDate]
+                  ,[Code]
+                  ,[Flag]
+                  ,[GroupCode]
+                  ,[Aadhaar]
+                  ,[Mssme]
+                  ,[fssai]
+                  ,[udyam]
+              FROM [QuickbillBook].[dbo].[Customer]
+              WHERE UserID in (0, @UserID) AND Tag5 = 'C' 
+              ORDER BY CustomerName
+        `;
+
+        const result = await connection.request()
+            .input('UserID', sql.Int, parseInt(userID))
+            .query(query);
+
+        res.json(result.recordset);
+    } catch (error) {
+        console.error("Error fetching cash accounts:", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
+
+app.get('/api/accounts/bank', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        const userID = req.header('UserID');
+
+        // Validate header
+        if (!userID) {
+            return res.status(400).json({ error: "Missing required header: UserID" });
+        }
+
+        connection = await sql.connect(dbConfig);
+
+        const query = `
+            SELECT TOP 1000 [CustomerID]
+                  ,[CustomerName]
+                  ,[CustomerGroup]
+                  ,[CustomerType]
+                  ,[ContactPerson]
+                  ,[Address1]
+                  ,[Address2]
+                  ,[Address3]
+                  ,[City]
+                  ,[Pin]
+                  ,[State]
+                  ,[Country]
+                  ,[Mobile1]
+                  ,[Mobile2]
+                  ,[Telephone1]
+                  ,[Telephone2]
+                  ,[Email]
+                  ,[Website]
+                  ,[GSTTIN]
+                  ,[PANNo]
+                  ,[VATNo]
+                  ,[TINNo]
+                  ,[LicenseNo1]
+                  ,[License2]
+                  ,[Opening]
+                  ,[CompanyID]
+                  ,[UserID]
+                  ,[Tag1]
+                  ,[Tag2]
+                  ,[Tag3]
+                  ,[Tag4]
+                  ,[Tag5]
+                  ,[CreatedBy]
+                  ,[CreatedDate]
+                  ,[ModifiedBy]
+                  ,[ModifiedDate]
+                  ,[Code]
+                  ,[Flag]
+                  ,[GroupCode]
+                  ,[Aadhaar]
+                  ,[Mssme]
+                  ,[fssai]
+                  ,[udyam]
+              FROM [QuickbillBook].[dbo].[Customer]
+              WHERE UserID = @UserID AND Tag5 = 'B' 
+              ORDER BY CustomerName
+        `;
+
+        const result = await connection.request()
+            .input('UserID', sql.Int, parseInt(userID))
+            .query(query);
+
+        res.json(result.recordset);
+    } catch (error) {
+        console.error("Error fetching bank accounts:", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
 module.exports = app;
