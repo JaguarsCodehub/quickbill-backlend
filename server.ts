@@ -3903,4 +3903,59 @@ app.get('/api/accounts/bank', async (req: Request, res: Response) => {
         }
     }
 });
+
+app.get('/api/bills', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        const userID = req.header('UserID');
+        const companyID = req.header('CompanyID');
+        const code = req.header('Code'); // Assuming you want to pass the Code as a header
+        const prefix = req.header('Prefix'); // Assuming you want to pass the Prefix as a header
+
+        // Validate headers
+        if (!userID || !companyID || !code || !prefix) {
+            return res.status(400).json({ error: "Missing required headers: UserID, CompanyID, Code, or Prefix" });
+        }
+
+        connection = await sql.connect(dbConfig);
+
+        const query = `
+            SELECT SRL,
+                   Convert(varchar, DocDate, 103) AS [Date],
+                   Prefix,
+                   BillNumber AS BillNo,
+                   CAST(Amount AS DECIMAL(18,2)) AS Amount,
+                   CAST(Pending AS DECIMAL(18,2)) AS Balance,
+                   '0' AS ReceivedBill,
+                   MainType,
+                   SubType,
+                   [Type],
+                   Sno 
+            FROM Outstanding 
+            WHERE SubType IN ('RS', 'NP') 
+              AND Code = @Code 
+              AND Pending > 0 
+              AND Prefix = @Prefix 
+              AND UserID = @UserID 
+              AND CompanyID = @CompanyID 
+            ORDER BY DocDate, SRL
+        `;
+
+        const result = await connection.request()
+            .input('UserID', sql.Int, parseInt(userID))
+            .input('CompanyID', sql.Int, parseInt(companyID))
+            .input('Code', sql.VarChar, code)
+            .input('Prefix', sql.VarChar, prefix)
+            .query(query);
+
+        res.json(result.recordset);
+    } catch (error) {
+        console.error("Error fetching bills:", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
 module.exports = app;
