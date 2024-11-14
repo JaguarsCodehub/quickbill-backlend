@@ -3028,7 +3028,7 @@ app.post('/api/create-purchase-return', async (req: Request, res: Response) => {
            ,@aPrefix
            ,@TransactionNumber)`);
 
-        // 2. Insert Discount Amount (Debit)
+        // 2. Insert Discount Amount (Credit)
         if (netAmt > 0) {
             await connection.request()
                 .input('Sno', sql.VarChar(5), '2')
@@ -3036,12 +3036,12 @@ app.post('/api/create-purchase-return', async (req: Request, res: Response) => {
                 .input('CurrRate', sql.Money, 0.00)
                 .input('MainType', sql.VarChar(2), 'PR')
                 .input('SubType', sql.VarChar(2), 'NP')
-                .input('Type', sql.VarChar(3), 'PUR')
+                .input('Type', sql.VarChar(3), 'PRT')
                 .input('Srl', sql.VarChar(35), docNo)
                 .input('DocDate', sql.DateTime, new Date(docDate))
                 .input('Code', sql.VarChar(9), '888888888')
-                .input('Debit', sql.Money, netAmt)
-                .input('Credit', sql.Money, 0.00)
+                .input('Debit', sql.Money, 0.00)
+                .input('Credit', sql.Money, netAmt)
                 .input('Cheque', sql.VarChar(20), '')           // Added missing
                 .input('RecoFlag', sql.VarChar(1), '')          // Added missing
                 .input('ClearDate', sql.DateTime, new Date(docDate))         // Added missing
@@ -3144,7 +3144,7 @@ app.post('/api/create-purchase-return', async (req: Request, res: Response) => {
            ,@TransactionNumber)`);
         }
 
-        // 3. Insert CGST Amount (Debit)
+        // 3. Insert CGST Amount (Credit)
         if (cgst > 0) {
             await connection.request()
                 .input('Sno', sql.VarChar(5), '3')
@@ -3152,12 +3152,12 @@ app.post('/api/create-purchase-return', async (req: Request, res: Response) => {
                 .input('CurrRate', sql.Money, 0.00)
                 .input('MainType', sql.VarChar(2), 'PR')
                 .input('SubType', sql.VarChar(2), 'NP')
-                .input('Type', sql.VarChar(3), 'PUR')
+                .input('Type', sql.VarChar(3), 'PRT')
                 .input('Srl', sql.VarChar(35), docNo)
                 .input('DocDate', sql.DateTime, new Date(docDate))
                 .input('Code', sql.VarChar(9), '888888884')
-                .input('Debit', sql.Money, cgst)
-                .input('Credit', sql.Money, 0.00)
+                .input('Debit', sql.Money, 0.00)
+                .input('Credit', sql.Money, cgst)
                 .input('Cheque', sql.VarChar(20), '')           // Added missing
                 .input('RecoFlag', sql.VarChar(1), '')          // Added missing
                 .input('ClearDate', sql.DateTime, new Date(docDate))         // Added missing
@@ -3260,20 +3260,20 @@ app.post('/api/create-purchase-return', async (req: Request, res: Response) => {
            ,@TransactionNumber)`);
         }
 
-        // 4. Insert SGST Amount (Debit)
+        // 4. Insert SGST Amount (Credit)
         if (sgst > 0) {
             await connection.request()
                 .input('Sno', sql.VarChar(5), '4')
                 .input('CurrName', sql.VarChar(10), '')
                 .input('CurrRate', sql.Money, 0.00)
                 .input('MainType', sql.VarChar(2), 'PR')
-                .input('SubType', sql.VarChar(2), 'RP')
-                .input('Type', sql.VarChar(3), 'PUR')
+                .input('SubType', sql.VarChar(2), 'NP')
+                .input('Type', sql.VarChar(3), 'PRT')
                 .input('Srl', sql.VarChar(35), docNo)
                 .input('DocDate', sql.DateTime, new Date(docDate))
                 .input('Code', sql.VarChar(9), '888888885')
-                .input('Debit', sql.Money, sgst)
-                .input('Credit', sql.Money, 0.00)
+                .input('Debit', sql.Money, 0.00)
+                .input('Credit', sql.Money, sgst)
                 .input('Cheque', sql.VarChar(20), '')           // Added missing
                 .input('RecoFlag', sql.VarChar(1), '')          // Added missing
                 .input('ClearDate', sql.DateTime, new Date(docDate))         // Added missing
@@ -3376,10 +3376,70 @@ app.post('/api/create-purchase-return', async (req: Request, res: Response) => {
            ,@TransactionNumber)`);
         }
 
-        if (!hasResponded) {
-            hasResponded = true;
-            res.status(201).json({ message: 'Purchase return created successfully', purchaseReturnId: purchaseId });
-        }
+        // Insert into Outstanding table
+        const outstandingQuery = `
+            INSERT INTO Outstanding (
+                Branch, MainType, SubType, Type, Prefix, Srl, Sno,
+                aMainType, aSubType, aType, aPrefix, aSerial, aSno,
+                CurrName, CurrRate, DocDate, Code, Amount, Pending,
+                Flag, BillNumber, BillDate, CrPeriod, TdsAmt,
+                OpnPending, OrdNumber, OrdDate, OpFlag, RefParty,
+                Remark, ncode, AdvanceWithGST, UserID, CompanyID,
+                TransactionNumber, CreatedBy, CreatedDate, ModifiedBy, ModifiedDate
+            )
+            VALUES (
+                @Branch, @MainType, @SubType, @Type, @Prefix, @Srl, @Sno,
+                @aMainType, @aSubType, @aType, @aPrefix, @aSerial, @aSno,
+                @CurrName, @CurrRate, @DocDate, @Code, ROUND(@Amount, 0), ROUND(@Pending, 0),
+                @Flag, @BillNumber, @BillDate, @CrPeriod, @TdsAmt,
+                @OpnPending, @OrdNumber, @OrdDate, @OpFlag, @RefParty,
+                @Remark, @ncode, @AdvanceWithGST, @UserID, @CompanyID,
+                @TransactionNumber, @CreatedBy, GETDATE(), @ModifiedBy, GETDATE()
+            )`;
+
+        await connection.request()
+            .input('Branch', sql.VarChar(6), '')
+            .input('MainType', sql.VarChar(2), 'PR')
+            .input('SubType', sql.VarChar(2), 'NP')
+            .input('Type', sql.VarChar(3), 'PRT')
+            .input('Prefix', sql.VarChar(8), prefix)
+            .input('Srl', sql.VarChar(35), docNo)
+            .input('Sno', sql.VarChar(5), '00001')
+            .input('aMainType', sql.VarChar(2), 'PR')
+            .input('aSubType', sql.VarChar(2), 'NP')
+            .input('aType', sql.VarChar(3), 'PRT')
+            .input('aPrefix', sql.VarChar(8), prefix)
+            .input('aSerial', sql.VarChar(35), docNo)
+            .input('aSno', sql.VarChar(5), '00001')
+            .input('CurrName', sql.VarChar(10), '')
+            .input('CurrRate', sql.Money, 0)
+            .input('DocDate', sql.DateTime, docDate)
+            .input('Code', sql.VarChar(30), customerCode)
+            .input('Amount', sql.Money, billAmt)
+            .input('Pending', sql.Money, billAmt)
+            .input('Flag', sql.VarChar(1), 'C')
+            .input('BillNumber', sql.VarChar(255), billNo)
+            .input('BillDate', sql.DateTime, billDate)
+            .input('CrPeriod', sql.Int, 30)
+            .input('TdsAmt', sql.Money, 0)
+            .input('OpnPending', sql.Money, 0)
+            .input('OrdNumber', sql.VarChar(255), '')
+            .input('OrdDate', sql.DateTime, docDate)
+            .input('OpFlag', sql.VarChar(1), '')
+            .input('RefParty', sql.VarChar(9), '')
+            .input('Remark', sql.VarChar(500), '')
+            .input('ncode', sql.VarChar(50), '')
+            .input('AdvanceWithGST', sql.Bit, 0)
+            .input('UserID', sql.Int, userId)
+            .input('CompanyID', sql.Int, companyId)
+            .input('TransactionNumber', sql.VarChar(50), transactionNumber)
+            .input('CreatedBy', sql.Int, createdBy)
+            .input('ModifiedBy', sql.Int, modifiedBy)
+            .query(outstandingQuery);
+
+        res.status(201).json({
+            message: 'Invoice and Outstanding entry created successfully'
+        });
 
     } catch (err: any) {
         console.error('Error creating purchase return:', err);
