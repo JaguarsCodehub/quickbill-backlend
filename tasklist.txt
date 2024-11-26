@@ -31,7 +31,8 @@ Password: $132u6skS
 
 
 
-SALES
-STOCK
-LEDGER
-OUTSTANDING
+
+
+Receipts and Payments Table:
+- LEDGER
+- OUTSTANDING
