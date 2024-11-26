@@ -2209,7 +2209,7 @@ app.post('/api/create-purchase', async (req: Request, res: Response) => {
                 `);
         }
 
-        res.status(201).json({ message: 'Purchase created successfully', purchaseId: purchaseId });
+
 
         // Generate transaction number
         const transactionNumber = Math.floor(Math.random() * 1000000).toString();
