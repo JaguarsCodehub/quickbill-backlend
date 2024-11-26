@@ -1952,7 +1952,7 @@ app.post('/api/create-return', async (req: Request, res: Response) => {
             .input('TdsAmt', sql.Money, 0)
             .input('OpnPending', sql.Money, 0)
             .input('OrdNumber', sql.VarChar(255), '')
-            .input('OrdDate', sql.DateTime, docDate)
+            .input('OrdDate', sql.DateTime, null)
             .input('OpFlag', sql.VarChar(1), '')
             .input('RefParty', sql.VarChar(9), '')
             .input('Remark', sql.VarChar(500), '')
@@ -3960,4 +3960,303 @@ app.get('/api/bills', async (req: Request, res: Response) => {
         }
     }
 });
+
+app.post('/api/create-receipts', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        const {
+            docDate,
+            billNo,
+            billDate,
+            bankCode,
+            amount,
+            narration,
+            prefix,
+            customerCode,
+            partyCode,
+            userId,
+            companyId,
+            createdBy,
+            modifiedBy
+        } = req.body;
+
+        connection = await sql.connect(dbConfig);
+
+        // Get the last SRL number
+        const getLastSrlRequest = connection.request()
+            .input('MainType', sql.VarChar(2), 'RC')
+            .input('SubType', sql.VarChar(2), 'BR')
+            .input('Type', sql.VarChar(3), 'BRC')
+            .input('Prefix', sql.VarChar(8), prefix)
+            .input('CompanyID', sql.Int, companyId)
+            .input('UserID', sql.Int, userId);
+
+        const result = await getLastSrlRequest.query(`
+            SELECT TOP 1 ISNULL(SRL, 0) as SRL 
+            FROM Ledger 
+            WHERE MainType = @MainType 
+            AND SubType = @SubType 
+            AND [Type] = @Type 
+            AND Prefix = @Prefix
+            AND CompanyID = @CompanyID
+            AND UserID = @UserID
+            ORDER BY SRL DESC
+        `);
+
+        // Generate new SRL number
+        const lastSrl = result.recordset[0]?.SRL || 0;
+        const newSrl = (parseInt(lastSrl) + 1).toString().padStart(6, '0');
+        const docNo = newSrl; // You can format this differently if needed
+
+        // Generate transaction number
+        const transactionNumber = Math.floor(Math.random() * 1000000).toString();
+
+        // 1. First Ledger Entry (Debit)
+        await connection.request()
+            .input('Sno', sql.VarChar(5), '1')
+            .input('CurrName', sql.VarChar(10), '')
+            .input('CurrRate', sql.Money, 0.00)
+            .input('MainType', sql.VarChar(2), 'RC')
+            .input('SubType', sql.VarChar(2), 'BR')
+            .input('Type', sql.VarChar(3), 'BRC')
+            .input('Srl', sql.VarChar(35), docNo)
+            .input('DocDate', sql.DateTime, new Date(docDate))
+            .input('Code', sql.VarChar(9), bankCode)
+            .input('Debit', sql.Money, amount)
+            .input('Credit', sql.Money, 0.00)
+            .input('Cheque', sql.VarChar(20), '')
+            .input('RecoFlag', sql.VarChar(1), '')
+            .input('ClearDate', sql.DateTime, new Date(docDate))
+            .input('Narr', sql.Text, narration || '')
+            .input('Prefix', sql.VarChar(8), prefix)
+            .input('Branch', sql.VarChar(6), '')
+            .input('AltCode', sql.VarChar(9), customerCode)
+            .input('Party', sql.VarChar(9), partyCode)
+            .input('BillNumber', sql.VarChar(255), docNo)
+            .input('BillDate', sql.DateTime, new Date(billDate))
+            .input('ChequeDate', sql.DateTime, new Date(billDate))
+            .input('DraweeBranch', sql.VarChar(150), '')
+            .input('AccountName', sql.VarChar(100), '')
+            .input('ReferenceCode', sql.VarChar(50), '')
+            .input('UserID', sql.Int, userId)
+            .input('CompanyID', sql.Int, companyId)
+            .input('CreatedBy', sql.Int, createdBy)
+            .input('ModifiedBy', sql.Int, modifiedBy)
+            .input('aSRL', sql.VarChar(35), docNo)
+            .input('aMainType', sql.VarChar(2), 'RC')
+            .input('aSubType', sql.VarChar(2), 'BR')
+            .input('aType', sql.VarChar(3), 'BRC')
+            .input('aPrefix', sql.VarChar(8), prefix)
+            .input('TransactionNumber', sql.VarChar(50), transactionNumber)
+            .query(`
+                INSERT INTO Ledger (
+                    Sno, CurrName, CurrRate, MainType, SubType, Type, Srl, DocDate, Code,
+                    Debit, Credit, Cheque, RecoFlag, ClearDate, Narr, Prefix, Branch,
+                    AltCode, Party, BillNumber, BillDate, ChequeDate, DraweeBranch,
+                    AccountName, ReferenceCode, UserID, CompanyID, CreatedBy, CreatedDate,
+                    ModifiedBy, ModifiedDate, aSRL, aMainType, aSubType, aType, aPrefix,
+                    TransactionNumber
+                )
+                VALUES (
+                    @Sno, @CurrName, @CurrRate, @MainType, @SubType, @Type, @Srl,
+                    @DocDate, @Code, @Debit, @Credit, @Cheque, @RecoFlag, @ClearDate,
+                    @Narr, @Prefix, @Branch, @AltCode, @Party, @BillNumber, @BillDate,
+                    @ChequeDate, @DraweeBranch, @AccountName, @ReferenceCode, @UserID,
+                    @CompanyID, @CreatedBy, GETDATE(), @ModifiedBy, GETDATE(), @aSRL,
+                    @aMainType, @aSubType, @aType, @aPrefix, @TransactionNumber
+                )
+            `);
+
+        // 2. Second Ledger Entry (Credit)
+        await connection.request()
+            .input('Sno', sql.VarChar(5), '2')
+            .input('CurrName', sql.VarChar(10), '')
+            .input('CurrRate', sql.Money, 0.00)
+            .input('MainType', sql.VarChar(2), 'RC')
+            .input('SubType', sql.VarChar(2), 'BR')
+            .input('Type', sql.VarChar(3), 'BRC')
+            .input('Srl', sql.VarChar(35), docNo)
+            .input('DocDate', sql.DateTime, new Date(docDate))
+            .input('Code', sql.VarChar(9), customerCode)
+            .input('Debit', sql.Money, 0.00)
+            .input('Credit', sql.Money, amount)
+            .input('Cheque', sql.VarChar(20), '')
+            .input('RecoFlag', sql.VarChar(1), '')
+            .input('ClearDate', sql.DateTime, new Date(docDate))
+            .input('Narr', sql.Text, narration || '')
+            .input('Prefix', sql.VarChar(8), prefix)
+            .input('Branch', sql.VarChar(6), '')
+            .input('AltCode', sql.VarChar(9), bankCode)
+            .input('Party', sql.VarChar(9), customerCode)
+            .input('BillNumber', sql.VarChar(255), docNo)
+            .input('BillDate', sql.DateTime, new Date(billDate))
+            .input('ChequeDate', sql.DateTime, new Date(billDate))
+            .input('DraweeBranch', sql.VarChar(150), '')
+            .input('AccountName', sql.VarChar(100), '')
+            .input('ReferenceCode', sql.VarChar(50), '')
+            .input('UserID', sql.Int, userId)
+            .input('CompanyID', sql.Int, companyId)
+            .input('CreatedBy', sql.Int, createdBy)
+            .input('ModifiedBy', sql.Int, modifiedBy)
+            .input('aSRL', sql.VarChar(35), docNo)
+            .input('aMainType', sql.VarChar(2), 'RC')
+            .input('aSubType', sql.VarChar(2), 'BR')
+            .input('aType', sql.VarChar(3), 'BRC')
+            .input('aPrefix', sql.VarChar(8), prefix)
+            .input('TransactionNumber', sql.VarChar(50), transactionNumber)
+            .query(`
+                INSERT INTO Ledger (
+                    Sno, CurrName, CurrRate, MainType, SubType, Type, Srl, DocDate, Code,
+                    Debit, Credit, Cheque, RecoFlag, ClearDate, Narr, Prefix, Branch,
+                    AltCode, Party, BillNumber, BillDate, ChequeDate, DraweeBranch,
+                    AccountName, ReferenceCode, UserID, CompanyID, CreatedBy, CreatedDate,
+                    ModifiedBy, ModifiedDate, aSRL, aMainType, aSubType, aType, aPrefix,
+                    TransactionNumber
+                )
+                VALUES (
+                    @Sno, @CurrName, @CurrRate, @MainType, @SubType, @Type, @Srl,
+                    @DocDate, @Code, @Debit, @Credit, @Cheque, @RecoFlag, @ClearDate,
+                    @Narr, @Prefix, @Branch, @AltCode, @Party, @BillNumber, @BillDate,
+                    @ChequeDate, @DraweeBranch, @AccountName, @ReferenceCode, @UserID,
+                    @CompanyID, @CreatedBy, GETDATE(), @ModifiedBy, GETDATE(), @aSRL,
+                    @aMainType, @aSubType, @aType, @aPrefix, @TransactionNumber
+                )
+            `);
+
+        // 3. First Outstanding Entry
+        await connection.request()
+            .input('Branch', sql.VarChar(6), '')
+            .input('MainType', sql.VarChar(2), 'RC')
+            .input('SubType', sql.VarChar(2), 'BR')
+            .input('Type', sql.VarChar(3), 'BRC')
+            .input('Prefix', sql.VarChar(8), prefix)
+            .input('Srl', sql.VarChar(35), docNo)
+            .input('Sno', sql.VarChar(5), '00001')
+            .input('aMainType', sql.VarChar(2), 'RC')
+            .input('aSubType', sql.VarChar(2), 'BR')
+            .input('aType', sql.VarChar(3), 'BRC')
+            .input('aPrefix', sql.VarChar(8), prefix)
+            .input('aSerial', sql.VarChar(35), docNo)
+            .input('aSno', sql.VarChar(5), '00001')
+            .input('CurrName', sql.VarChar(10), '')
+            .input('CurrRate', sql.Money, 0)
+            .input('DocDate', sql.DateTime, new Date(docDate))
+            .input('Code', sql.VarChar(30), customerCode)
+            .input('Amount', sql.Money, amount)
+            .input('Pending', sql.Money, amount)
+            .input('Flag', sql.VarChar(1), 'C')
+            .input('BillNumber', sql.VarChar(255), docNo)
+            .input('BillDate', sql.DateTime, new Date(billDate))
+            .input('CrPeriod', sql.Int, 30)
+            .input('TdsAmt', sql.Money, 0)
+            .input('OpnPending', sql.Money, 0)
+            .input('OrdNumber', sql.VarChar(255), '')
+            .input('OrdDate', sql.DateTime, new Date(docDate))
+            .input('OpFlag', sql.VarChar(1), '')
+            .input('RefParty', sql.VarChar(9), '')
+            .input('Remark', sql.VarChar(500), '')
+            .input('ncode', sql.VarChar(50), '')
+            .input('AdvanceWithGST', sql.Bit, 0)
+            .input('UserID', sql.Int, userId)
+            .input('CompanyID', sql.Int, companyId)
+            .input('TransactionNumber', sql.VarChar(50), transactionNumber)
+            .input('CreatedBy', sql.Int, createdBy)
+            .input('ModifiedBy', sql.Int, modifiedBy)
+            .query(`
+                INSERT INTO Outstanding (
+                    Branch, MainType, SubType, Type, Prefix, Srl, Sno, aMainType,
+                    aSubType, aType, aPrefix, aSerial, aSno, CurrName, CurrRate,
+                    DocDate, Code, Amount, Pending, Flag, BillNumber, BillDate,
+                    CrPeriod, TdsAmt, OpnPending, OrdNumber, OrdDate, OpFlag,
+                    RefParty, Remark, ncode, AdvanceWithGST, UserID, CompanyID,
+                    TransactionNumber, CreatedBy, CreatedDate, ModifiedBy, ModifiedDate
+                )
+                VALUES (
+                    @Branch, @MainType, @SubType, @Type, @Prefix, @Srl, @Sno,
+                    @aMainType, @aSubType, @aType, @aPrefix, @aSerial, @aSno,
+                    @CurrName, @CurrRate, @DocDate, @Code, ROUND(@Amount, 0),
+                    ROUND(@Pending, 0), @Flag, @BillNumber, @BillDate, @CrPeriod,
+                    @TdsAmt, @OpnPending, @OrdNumber, @OrdDate, @OpFlag, @RefParty,
+                    @Remark, @ncode, @AdvanceWithGST, @UserID, @CompanyID,
+                    @TransactionNumber, @CreatedBy, GETDATE(), @ModifiedBy, GETDATE()
+                )
+            `);
+
+        // 4. Second Outstanding Entry (with different MainType, SubType, Type)
+        await connection.request()
+            .input('Branch', sql.VarChar(6), '')
+            .input('MainType', sql.VarChar(2), 'RC')
+            .input('SubType', sql.VarChar(2), 'BR')
+            .input('Type', sql.VarChar(3), 'BRC')
+            .input('Prefix', sql.VarChar(8), prefix)
+            .input('Srl', sql.VarChar(35), docNo)
+            .input('Sno', sql.VarChar(5), '00001')
+            .input('aMainType', sql.VarChar(2), 'SL')
+            .input('aSubType', sql.VarChar(2), 'RS')
+            .input('aType', sql.VarChar(3), 'SAL')
+            .input('aPrefix', sql.VarChar(8), prefix)
+            .input('aSerial', sql.VarChar(35), docNo)
+            .input('aSno', sql.VarChar(5), '00001')
+            .input('CurrName', sql.VarChar(10), '')
+            .input('CurrRate', sql.Money, 0)
+            .input('DocDate', sql.DateTime, new Date(docDate))
+            .input('Code', sql.VarChar(30), customerCode)
+            .input('Amount', sql.Money, amount)
+            .input('Pending', sql.Money, 0)
+            .input('Flag', sql.VarChar(1), '')
+            .input('BillNumber', sql.VarChar(255), docNo)
+            .input('BillDate', sql.DateTime, new Date(billDate))
+            .input('CrPeriod', sql.Int, 30)
+            .input('TdsAmt', sql.Money, 0)
+            .input('OpnPending', sql.Money, 0)
+            .input('OrdNumber', sql.VarChar(255), '')
+            .input('OrdDate', sql.DateTime, new Date(docDate))
+            .input('OpFlag', sql.VarChar(1), '')
+            .input('RefParty', sql.VarChar(9), '')
+            .input('Remark', sql.VarChar(500), '')
+            .input('ncode', sql.VarChar(50), '')
+            .input('AdvanceWithGST', sql.Bit, 0)
+            .input('UserID', sql.Int, userId)
+            .input('CompanyID', sql.Int, companyId)
+            .input('TransactionNumber', sql.VarChar(50), transactionNumber)
+            .input('CreatedBy', sql.Int, createdBy)
+            .input('ModifiedBy', sql.Int, modifiedBy)
+            .query(`
+                INSERT INTO Outstanding (
+                    Branch, MainType, SubType, Type, Prefix, Srl, Sno, aMainType,
+                    aSubType, aType, aPrefix, aSerial, aSno, CurrName, CurrRate,
+                    DocDate, Code, Amount, Pending, Flag, BillNumber, BillDate,
+                    CrPeriod, TdsAmt, OpnPending, OrdNumber, OrdDate, OpFlag,
+                    RefParty, Remark, ncode, AdvanceWithGST, UserID, CompanyID,
+                    TransactionNumber, CreatedBy, CreatedDate, ModifiedBy, ModifiedDate
+                )
+                VALUES (
+                    @Branch, @MainType, @SubType, @Type, @Prefix, @Srl, @Sno,
+                    @aMainType, @aSubType, @aType, @aPrefix, @aSerial, @aSno,
+                    @CurrName, @CurrRate, @DocDate, @Code, ROUND(@Amount, 0),
+                    ROUND(@Pending, 0), @Flag, @BillNumber, @BillDate, @CrPeriod,
+                    @TdsAmt, @OpnPending, @OrdNumber, @OrdDate, @OpFlag, @RefParty,
+                    @Remark, @ncode, @AdvanceWithGST, @UserID, @CompanyID,
+                    @TransactionNumber, @CreatedBy, GETDATE(), @ModifiedBy, GETDATE()
+                )
+            `);
+
+        res.status(201).json({
+            message: 'Receipt entries created successfully',
+            transactionNumber
+        });
+
+    } catch (err: any) {
+        console.error('Error creating receipt entries:', err);
+        res.status(500).json({
+            error: 'An error occurred while creating the receipt entries',
+            details: err.message
+        });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
+
 module.exports = app;
