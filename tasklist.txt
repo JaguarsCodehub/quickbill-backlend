@@ -27,52 +27,11 @@ Mostly all the Backend Work is Done, Only the Individual Comparison Chart and At
 
 - Rounding Off the Amount and Pending in the Outstanding Table
 
-/****** Script for SelectTopNRows command from SSMS  ******/
-SELECT TOP 1000 [CustomerID]
-      ,[CustomerName]
-      ,[CustomerGroup]
-      ,[CustomerType]
-      ,[ContactPerson]
-      ,[Address1]
-      ,[Address2]
-      ,[Address3]
-      ,[City]
-      ,[Pin]
-      ,[State]
-      ,[Country]
-      ,[Mobile1]
-      ,[Mobile2]
-      ,[Telephone1]
-      ,[Telephone2]
-      ,[Email]
-      ,[Website]
-      ,[GSTTIN]
-      ,[PANNo]
-      ,[VATNo]
-      ,[TINNo]
-      ,[LicenseNo1]
-      ,[License2]
-      ,[Opening]
-      ,[CompanyID]
-      ,[UserID]
-      ,[Tag1]
-      ,[Tag2]
-      ,[Tag3]
-      ,[Tag4]
-      ,[Tag5]
-      ,[CreatedBy]
-      ,[CreatedDate]
-      ,[ModifiedBy]
-      ,[ModifiedDate]
-      ,[Code]
-      ,[Flag]
-      ,[GroupCode]
-      ,[Aadhaar]
-      ,[Mssme]
-      ,[fssai]
-      ,[udyam]
-  FROM [QuickbillBook].[dbo].[Customer]
-  WHERE UserID in (0,122)  AND Tag5 = 'C' ORDER BY CustomerName
+Password: $132u6skS
 
- 
-  WHERE UserID=122  AND Tag5 = 'B' ORDER BY CustomerName
+
+
+SALES
+STOCK
+LEDGER
+OUTSTANDING
