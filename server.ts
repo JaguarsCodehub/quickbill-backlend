@@ -773,7 +773,7 @@ app.post('/api/create-invoice', async (req: Request, res: Response) => {
                 `);
         }
 
-        res.status(201).json({ message: 'Invoice created successfully', salesId: salesId });
+
 
         // After successful sales insertion, add Ledger entries
         const transactionNumber = Math.floor(Math.random() * 1000000).toString(); // Generate random transaction number
@@ -1245,6 +1245,8 @@ app.post('/api/create-invoice', async (req: Request, res: Response) => {
         res.status(201).json({
             message: 'Invoice and Outstanding entry created successfully'
         });
+
+
 
     } catch (err: any) {
         console.error('Error creating invoice:', err);
