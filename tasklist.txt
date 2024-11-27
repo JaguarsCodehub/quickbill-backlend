@@ -1,35 +1,11 @@
-- Product Master by Group Name, then create orders https://quickbillbook.com/SalesOrder.aspx Done ✅
-- Need to validate inputs and need to implement the above feature too Done ✅
-- Get Items / Products from ItemMaster Table and need to show in the dropdown list in the frontend Done ✅
-- Implement the above for the backend API too Done ✅
 
-- Sales: Invoice - Sales T, SL, RS, SAL
-		 Return - Sales T, SL, NS, SRT
-		 Inside Sales Table
-         Need to create endpoints for the Invoice and Return inside sales table
 
-Select top 1 isnull(DocNo,0) as SRL from sales 
-						where 
-						 [Type]=@Type 
-						and Prefix=@Prefix
-						and CompanyID=@CompanyID
-						and UserID=@UserID
-						order by DocNo desc
-- Get Items / Products from ItemMaster Table and need to show in the dropdown list in the frontend Done ✅
-- Implement the above for the backend API too Done ✅
-- Need to validate the inputs in the dropdown list in the frontend Done ✅
-- Whole User Interface needs to be redesigned and improved Done ✅
-- Need to add the validation for the inputs in the User Interface Done ✅
-- Multiple Orders need to be saved to a Single Invoice (Table) Done ✅
-- Calculation of Total Order with all the taxes and amounts needs to be done Done ✅
-
-Mostly all the Backend Work is Done, Only the Individual Comparison Chart and Attachments are Left
 
 - Rounding Off the Amount and Pending in the Outstanding Table
 
 Password: $132u6skS
 
-
+UPDATE Outstanding SET Pending=Pending-Amount WHERE UserID=0 AND CompanyID=0 AND Prefix = '' AND Type = 'SAL' AND Srl = ''
 
 
 
