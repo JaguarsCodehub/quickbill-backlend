@@ -21,6 +21,7 @@
     "vercel": "^37.8.0"
   },
   "devDependencies": {
+    "@types/axios": "^0.14.4",
     "@types/express": "^5.0.0",
     "@types/node": "^22.7.4",
     "nodemon": "^3.1.7",

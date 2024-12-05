@@ -1,5 +1,7 @@
 import { config } from "dotenv";
 import { Request, Response } from "express";
+import axios from 'axios';
+import { generatePDF } from "./utils/rdlcService";
 
 require('dotenv').config();
 
@@ -4669,5 +4671,102 @@ app.get('/api/payment-bills', async (req: Request, res: Response) => {
         }
     }
 });
+
+// Simplified route using direct RDLC service
+app.post('/generate-pdf', async (req: Request, res: Response) => {
+    try {
+        const pdfBuffer = await generatePDF(req.body);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'attachment; filename=invoice.pdf');
+        res.send(pdfBuffer);
+
+    } catch (error: any) {
+        console.error('Error generating PDF:', error);
+        res.status(500).json({
+            error: 'Failed to generate PDF',
+            details: error.message
+        });
+    }
+});
+
+app.get('/company-details', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        const companyID = req.header('CompanyID');
+
+        // Validate header
+        if (!companyID) {
+            return res.status(400).json({ error: "Missing required header: CompanyID" });
+        }
+
+        connection = await sql.connect(dbConfig);
+
+        const query = `
+            SELECT [CompanyID]
+                  ,[CompanyName]
+                  ,[Address1]
+                  ,[Address2]
+                  ,[Address3]
+                  ,[City]
+                  ,[Zip]
+                  ,[State]
+                  ,[Country]
+                  ,[Email]
+                  ,[Mobile]
+                  ,[Telephone]
+                  ,[Currency]
+                  ,[TaxType]
+                  ,[UserID]
+                  ,[UserName]
+                  ,[Password]
+                  ,[StoreCode]
+                  ,[Tag1]
+                  ,[Tag2]
+                  ,[Tag3]
+                  ,[Tag4]
+                  ,[Tag5]
+                  ,[GSTCategory]
+                  ,[GSTCode]
+                  ,[Tag6]
+                  ,[Tag7]
+                  ,[TermCodition]
+                  ,[Garment]
+                  ,[Matrix]
+                  ,[eInovise]
+                  ,[PurchesMatrix]
+                  ,[EwayBill]
+                  ,[Qrimg]
+                  ,[TAN]
+                  ,[UdyamNo]
+                  ,[msme]
+                  ,[adhearno]
+                  ,[fssino]
+                  ,[Drug1]
+                  ,[Drug2]
+                  ,[cin]
+            FROM [QuickbillBook].[dbo].[CompanyMaster]
+            WHERE CompanyID = @CompanyID`;
+
+        const result = await connection.request()
+            .input('CompanyID', sql.Int, parseInt(companyID))
+            .query(query);
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ error: "Company not found" });
+        }
+
+        res.json(result.recordset[0]);
+
+    } catch (error) {
+        console.error("Error fetching company details:", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
+
 
 module.exports = app;
