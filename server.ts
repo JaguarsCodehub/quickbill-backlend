@@ -1,7 +1,6 @@
 import { config } from "dotenv";
 import { Request, Response } from "express";
 import axios from 'axios';
-import { generatePDF } from "./utils/rdlcService";
 
 require('dotenv').config();
 
@@ -162,6 +161,45 @@ app.post('/login', async (req: Request, res: Response) => {
             res.json(result.recordset[0]); // Send the first (and should be only) matching record
         } else {
             res.status(401).json({ message: 'Invalid username or password' });
+        }
+    } catch (err) {
+        console.error('SQL error', err);
+        res.status(500).json({ message: 'Server error' });
+    } finally {
+        if (pool) {
+            await pool.close();
+        }
+    }
+});
+
+app.post('/admin-login', async (req: Request, res: Response) => {
+    const { username, password } = req.body;
+    let pool;
+    try {
+        pool = await sql.connect(dbConfig);
+        const encryptedPassword = encrypt(password);
+
+        const result = await pool.request()
+            .input('username', sql.VarChar, username)
+            .input('password', sql.VarChar, encryptedPassword)
+            .query(`
+                SELECt u.*,c.CompanyID,isnull(c.CompanyName,'') as CompanyName,c.StoreCode,isnull(c.TaxType,'') as TaxType,
+					ISNULL(c.Garment,'') as Garment,ISNULL(c.Matrix,'') as Matrix,ISNULL(c.eInovise,'') as eInovise,ISNULL(c.PurchesMatrix,'') as PurchesMatrix,ISNULL(c.EwayBill,'') as EwayBill ,
+				isnull(c.UserName,'') as CUsername,isnull(c.Currency,'') as Currency,ISNULL(c.State,'') as [State],isnull(s.Size,'') as Size,isnull(s.[Format],'') as [Format],ISNULL(c.Tag3,'') as gst,isnull(Billwisediscount,'0')as Billwisediscount ,isnull(sing,'') as sing,isnull(s.[Order],'') as [Order],isnull(s.Search,'0')as Search ,
+				  isnull(MFG,'0')as MFG ,isnull(SubCounstrter,'0')as SubCounstrter,isnull(Bom,'')as Bom,isnull(store,'')as store,isnull(Pwds,'0')as Pwds,isnull(Pwdp,'0') as Pwdp FROM UserMaster u
+				inner join CompanyMaster c on c.UserID=u.UserID
+				Left join Setting s on  s.UserID=u.UserID 
+				Left join Module m on  m.UserID=u.UserID 
+				
+				WHERE u.UserName=@username
+				and u.[Password]=@password
+				and u.IsActive=1
+            `);
+
+        if (result.recordset.length > 0) {
+            res.json(result.recordset[0]); // Send the first (and should be only) matching record
+        } else {
+            res.status(401).json({ message: 'Admin Invalid username or password' });
         }
     } catch (err) {
         console.error('SQL error', err);
@@ -4669,24 +4707,6 @@ app.get('/api/payment-bills', async (req: Request, res: Response) => {
         if (connection) {
             await connection.close();
         }
-    }
-});
-
-// Simplified route using direct RDLC service
-app.post('/generate-pdf', async (req: Request, res: Response) => {
-    try {
-        const pdfBuffer = await generatePDF(req.body);
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'attachment; filename=invoice.pdf');
-        res.send(pdfBuffer);
-
-    } catch (error: any) {
-        console.error('Error generating PDF:', error);
-        res.status(500).json({
-            error: 'Failed to generate PDF',
-            details: error.message
-        });
     }
 });
 
