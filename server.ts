@@ -3666,6 +3666,164 @@ app.get('/api/total-sales', async (req: Request, res: Response) => {
     }
 });
 
+app.get('/api/sales-invoice', async (req: Request, res: Response) => {
+    let connection;
+    try {
+        const userID = req.header('UserID');
+        const docNo = req.header('DocNo'); // Assuming DocNo is passed as a query parameter
+        const srNo = req.header('SRL'); // Assuming SRL is passed as a query parameter
+        const type = req.header('Type'); // Assuming Type is passed as a query parameter
+        const prefix = req.header('Prefix');
+        const partyCode = req.header('PartyCode'); // Assuming PartyCode is passed as a query parameter
+
+        // Validate inputs
+        if (!userID || !docNo || !srNo || !type || !prefix || !partyCode) {
+            return res.status(400).json({ error: "Missing required parameters or headers." });
+        }
+
+        connection = await getDbConnection();
+        const request = connection.request();
+
+        request.input('UserID', sql.Int, parseInt(userID));
+        request.input('DocNo', sql.VarChar, docNo);
+        request.input('SRL', sql.VarChar, srNo);
+        request.input('Type', sql.VarChar, type);
+        request.input('Prefix', sql.VarChar, prefix);
+        request.input('PartyCode', sql.VarChar, partyCode);
+
+        const query = `
+            SELECT 
+            s.[SalesID],
+            ISNULL(s.[Status],'PENDING') AS [Status1],
+            s.[DocNo],
+            CONVERT(VARCHAR, s.[DocDate], 103) AS [DocDate],
+            s.[BillNo],
+            CONVERT(VARCHAR, s.[BillDate], 103) AS [BillDate],
+            s.[PartyCode],
+            ISNULL(s.[AddCode], '') AS [AddCode],
+            CAST(s.[BillAmt] AS DECIMAL(18,2)) AS [BillAmt],
+            CAST(s.[TotalQty] AS DECIMAL(18,2)) AS [TotalQty],
+            CAST(s.[NetAmt] AS DECIMAL(18,2)) AS [NetAmt],
+            CAST(s.[TaxAmt] AS DECIMAL(18,2)) AS [TaxAmt],
+            CAST(s.[DiscAmt] AS DECIMAL(18,2)) AS [DiscAmt],
+            s.[MainType],
+            s.[SubType],
+            s.[Type],
+            s.[Prefix],
+            s.[UserID],
+            s.[CompanyID],
+            s.[CreatedBy],
+            s.[CreatedDate],
+            s.[ModifiedBy],
+            s.[ModifiedDate],
+            s.[PartyName],
+            s.[Selection],
+            s.[ProductName],
+            CAST(s.[DiscPer] AS DECIMAL(18,2)) AS [DiscPer],
+            CAST(s.[CGST] AS DECIMAL(18,2)) AS [CGST],
+            CAST(s.[SGST] AS DECIMAL(18,2)) AS [SGST],
+            CAST(s.[IGST] AS DECIMAL(18,2)) AS [IGST],
+            CAST(s.[UTGST] AS DECIMAL(18,2)) AS [UTGST],
+            s.[Narration],
+            CAST(s.[TotalAmt] AS DECIMAL(18,2)) AS [TotalAmt],
+            CAST(s.[Rate] AS DECIMAL(18,2)) AS [Rate],
+            c.CustomerName,
+            c.Address1,
+            c.Address2,
+            c.Address3,
+            c.City,
+            c.State,
+            c.Country,
+            c.Pin,
+            c.Mobile1,
+            c.Email,
+            c.GSTTIN,
+            t.SNo AS [tSno],
+            t.ItemCode,
+            ISNULL(i.ItemName, '') AS ItemName,
+            CAST(t.Qty AS DECIMAL(10,2)) AS [tQty],
+            CAST(t.Rate AS DECIMAL(10,2)) AS [tRate],
+            CAST(t.Rate * t.Qty AS DECIMAL(10,2)) AS [tValue],
+            CAST(t.Disc AS DECIMAL(10,2)) AS [tDisc],
+            CAST(t.DiscAmt AS DECIMAL(10,2)) AS [tDiscAmt],
+            t.StoreCode AS [tStoreCode],
+            t.Narration AS [tNarration],
+            i.HSNCode,
+            CAST(ISNULL(tx.[SCGSTLocalPer],0) AS DECIMAL(18,1)) AS SCGSTLocalPer,
+            CAST(ISNULL(tx.[SSGSTLocalPer],0) AS DECIMAL(18,1)) AS SSGSTLocalPer,
+            CAST(ISNULL(tx.[SIGSTLocalPer],0) AS DECIMAL(18,1)) AS SIGSTLocalPer,
+            t.BranchCode AS [tBranchCode],
+            t.BarcodeValue AS [tBarcodeValue],
+            t.Unit AS [tUnit],
+            u.GSTUnitP1,
+            CAST(t.MRP AS DECIMAL(10,2)) AS [tMRP],
+            t.TaxCode AS [tTaxCode],
+            CAST(t.CessAmt AS DECIMAL(10,2)) AS [tCessAmt],
+            i.Barcode,
+            CAST(t.Taxable AS DECIMAL(10,2)) AS [tTaxable],
+            CAST(t.CGST AS DECIMAL(10,2)) AS [tCGST],
+            CAST(t.SGST AS DECIMAL(10,2)) AS [tSGST],
+            CAST(t.IGST AS DECIMAL(10,2)) AS [tIGST],
+            i.HSNCode AS [tUTGST],
+            CAST(t.TaxAmt AS DECIMAL(10,2)) AS [tTaxAmt],
+            CAST((t.Taxable + t.TaxAmt) AS DECIMAL(10,2)) AS [tAmt],
+            tx.TotalTaxPerc AS [TotalTaxPerc],
+            ISNULL(s.eInvIRN, '') AS IRN,
+            ISNULL(s.eInvStatus, '') AS [Status],
+            ISNULL(s.eInvAckNo, '') AS AckNo,
+            ISNULL(s.eInvAckDate, '') AS AckDate,
+            ISNULL(s.eInvSignedQRCodeData, '') AS QR,
+            ISNULL(s.Roundoff, '0.00') AS Roundoff,
+            ISNULL(s.ExtrCharch, '0.00') AS ExtrCharch,
+            ISNULL(s.DiscountExtra, '0.00') AS DiscountExtra,
+            ISNULL(Exchargelager, '') AS Exchargelager,
+            ISNULL(ExDicoutlager, '') AS ExDicoutlager,
+            CAST(t.Pnding AS DECIMAL(18,2)) AS Pnding,
+            ISNULL(s.eInvSignedQRCodeFileName, '') AS [Path],
+            ISNULL(Mssme, '') AS Mssme,
+            ISNULL(udyam, '') AS udyam,
+            ISNULL(tx.Name, 'NON GST') AS Taxname,
+            ISNULL(s.Transpoter, '') AS Transpoter,
+            ISNULL(s.LRNo, '') AS LRNo,
+            ISNULL(s.EWayBillNo, '') AS EWayBillNo,
+            ISNULL(s.ModeofTarn, '') AS ModeofTarn,
+            ISNULL(s.Dispatch, '') AS Dispatch,
+            ISNULL(s.NoPackage, '') AS NoPackage,
+            ISNULL(s.eInvRemarks, '') AS eInvRemarks,
+            ISNULL(s.PlaceOfSuply, '') AS PlaceOfSuply,
+            u.GSTUnitP1 AS UOM,
+            t.Unit,
+            ISNULL(CurrName, '') AS CurrName,
+            ISNULL(CurrRate, 1) AS CurrRate
+            FROM 
+            Sales s
+            LEFT JOIN Customer c ON s.PartyCode = c.Code AND c.Flag = 'L' AND s.UserID = c.UserID AND s.CompanyID = c.CompanyID
+            LEFT JOIN Stock t ON t.SRL = s.DocNo AND t.Type = s.Type AND t.Prefix = s.Prefix AND t.UserID = s.UserID AND t.CompanyID = s.CompanyID
+            LEFT JOIN ItemMaster i ON t.ItemCode = i.ItemCode AND i.Flag = 'L' AND s.UserID = i.UserID AND s.CompanyID = i.CompanyID
+            LEFT JOIN GSTUnitMaster u ON i.Unit = u.Code
+            LEFT JOIN TaxMasterGST1 tx ON t.TaxCode = tx.Code
+            WHERE 
+            s.UserID = @UserID
+            AND s.DocNo = @DocNo
+            AND t.SRL = @SRL
+            AND s.Type = @Type
+            AND s.Prefix = @Prefix
+            AND s.PartyCode = @PartyCode
+        `;
+
+        const result = await request.query(query);
+        res.json(result.recordset);
+    } catch (error) {
+        console.error("Error fetching sales invoice:", error);
+        res.status(500).json({ error: "Internal server error" });
+    } finally {
+        if (connection) {
+            await connection.close();
+        }
+    }
+});
+
+
 app.get('/api/total-purchases', async (req: Request, res: Response) => {
     let connection;
     try {
