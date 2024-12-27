@@ -3762,7 +3762,8 @@ app.get('/api/sales-vs-purchases', async (req: Request, res: Response) => {
         const salesQuery = `
             SELECT 
                 ISNULL(SUM([BillAmt]), 0) - 
-                (SELECT ISNULL(SUM([BillAmt]), 0) FROM Sales WHERE UserID = @UserID AND CompanyID = @CompanyID AND [Type] = 'SRT' AND Prefix = @Prefix)
+                (SELECT ISNULL(SUM([BillAmt]), 0) FROM Sales WHERE UserID = @UserID AND CompanyID = @CompanyID AND [Type] = 'SRT' AND Prefix = @Prefix) 
+                AS TotalSales
             FROM Sales
             WHERE 
                 UserID = @UserID 
@@ -3775,7 +3776,8 @@ app.get('/api/sales-vs-purchases', async (req: Request, res: Response) => {
         const purchasesQuery = `
             SELECT 
                 ISNULL(SUM([BillAmt]), 0) - 
-                (SELECT ISNULL(SUM([BillAmt]), 0) FROM Purchase WHERE UserID = @UserID AND CompanyID = @CompanyID AND [Type] = 'PRT' AND Prefix = @Prefix)
+                (SELECT ISNULL(SUM([BillAmt]), 0) FROM Purchase WHERE UserID = @UserID AND CompanyID = @CompanyID AND [Type] = 'PRT' AND Prefix = @Prefix) 
+                AS TotalPurchases
             FROM Purchase
             WHERE 
                 UserID = @UserID 
@@ -3786,8 +3788,8 @@ app.get('/api/sales-vs-purchases', async (req: Request, res: Response) => {
         const purchasesResult = await request.query(purchasesQuery);
 
         res.json({
-            sales: salesResult.recordset[0],
-            purchases: purchasesResult.recordset[0],
+            sales: salesResult.recordset[0].TotalSales,
+            purchases: purchasesResult.recordset[0].TotalPurchases,
         });
     } catch (error) {
         console.error("Error fetching sales vs purchases:", error);
@@ -3798,6 +3800,7 @@ app.get('/api/sales-vs-purchases', async (req: Request, res: Response) => {
         }
     }
 });
+
 
 
 app.get('/api/accounts/cash', async (req: Request, res: Response) => {
